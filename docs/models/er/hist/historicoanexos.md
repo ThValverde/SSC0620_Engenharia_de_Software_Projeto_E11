@@ -1,4 +1,4 @@
-```
+```mermaid
 erDiagram
   Pasta ||--o{ Anexo : organiza
   Anexo ||--o{ Arquivo : armazena
