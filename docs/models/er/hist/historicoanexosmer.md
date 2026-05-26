@@ -24,7 +24,7 @@ erDiagram
       formato_extensao
       tamanho_kb
       upload_date
-      string path
+      path
   }
 %%|o : Zero ou Um (Opcional)
 %%|| : Exatamente Umo
