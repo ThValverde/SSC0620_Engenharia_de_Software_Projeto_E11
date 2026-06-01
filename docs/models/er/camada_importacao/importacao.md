@@ -1,4 +1,4 @@
-```
+```mermaid
 
 erDiagram
     IMPORTACAO ||--o{ FLUXO_VEICULOS : contem
@@ -32,10 +32,10 @@ erDiagram
         date mes_ano_competencia
         float valor_issqn
         string municipio
-```
     }
 
 %%|o : Zero ou Um (Opcional)
 %%|| : Exatamente Um
 %% { : Zero ou Muitos
 %% |{ : Um ou Muitos
+```
