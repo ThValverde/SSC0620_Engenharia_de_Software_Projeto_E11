@@ -1,3 +1,5 @@
+```
+
 erDiagram
     IMPORTACAO ||--o{ FLUXO_VEICULOS : contem
     ENTIDADE_INVENTARIO ||--o{ DADO_ISSQN : "arrecada"
@@ -30,6 +32,7 @@ erDiagram
         date mes_ano_competencia
         float valor_issqn
         string municipio
+```
     }
 
 %%|o : Zero ou Um (Opcional)
