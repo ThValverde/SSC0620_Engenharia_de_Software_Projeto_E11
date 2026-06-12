@@ -1,3 +1,4 @@
+```mermaid
 classDiagram
 direction LR
     class Estabelecimento {
@@ -333,5 +334,5 @@ direction LR
 
     Taxi_Aplicativo "1" -- "1" Endereco
     Taxi_Aplicativo "1" -- "N" Contato
-
+```
 
