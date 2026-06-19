@@ -30,6 +30,12 @@ pip install -r requirements.txt
 pip freeze > requirements.txt
 
 
+# para rodar o servidor django (ambos os cenários)
+python manage.py runserver
+# para atualizacoes
+python manage.py makemigrations
+python manage.py migrate
+
 # ==========================================
 # FRONTEND - OPÇÃO A: REACT NATIVE (Expo)
 # (Abra um novo terminal)
