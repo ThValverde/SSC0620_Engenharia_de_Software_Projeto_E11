@@ -158,8 +158,13 @@ class RegistroInventario(models.Model):
         db_index=True,
         help_text="Discriminador do segmento — preenchido automaticamente pela filha.",
     )
+    ativo = models.BooleanField(
+        default = True,
+        help_text = "Indica se o estabelecimento está ativo ou não no inventário."
+    )
     criado_em = models.DateTimeField(auto_now_add=True)
     atualizado_em = models.DateTimeField(auto_now=True)
+
 
     class Meta:
         db_table = "registro_inventario"
