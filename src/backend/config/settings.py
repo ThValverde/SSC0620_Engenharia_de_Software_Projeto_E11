@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     'dj_rest_auth',
     'django_filters',
     'inventario',
+    'historico',
 ]
 
 MIDDLEWARE = [
