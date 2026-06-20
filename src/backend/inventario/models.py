@@ -390,6 +390,13 @@ class Estabelecimento(RegistroInventario):
         blank=True,
     )
 
+    qtde_funcionarios_fixos = models.PositiveIntegerField(
+        null=True, blank=True, verbose_name="Funcionários Fixos"
+    )
+    qtde_funcionarios_temporarios = models.PositiveIntegerField(
+        null=True, blank=True, verbose_name="Funcionários Temporários"
+    )
+
     class Meta:
         db_table = "estabelecimento"
         verbose_name = "estabelecimento"
@@ -425,6 +432,16 @@ class ProdutoServico(models.Model):
 # =============================================================================
 
 
+class Secao(models.Model):
+    escopo = models.CharField(max_length=20, choices=EscopoCatalogo.choices)
+    nome = models.CharField(max_length=120)
+    com_pergunta = models.BooleanField(default=False) 
+    ordem = models.PositiveSmallIntegerField(default=0)
+    class Meta:
+        db_table = "secao"
+        constraints = [models.UniqueConstraint(fields=["escopo", "nome"], name="uq_secao_escopo_nome")]
+
+
 class Caracteristica(models.Model):
     """Catálogo de características CATEGÓRICAS (Regra 1.1), com escopo.
 
@@ -441,6 +458,7 @@ class Caracteristica(models.Model):
     customizada = models.BooleanField(
         default=False, help_text="Criada dinamicamente ([Texto Dinâmico Customizado])."
     )
+    secao = models.ForeignKey(Secao, null=True, blank=True, on_delete=models.PROTECT, related_name="caracteristicas")
 
     class Meta:
         db_table = "caracteristica"

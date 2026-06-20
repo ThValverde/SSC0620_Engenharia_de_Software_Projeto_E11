@@ -4,6 +4,7 @@ from rest_framework import serializers
 from .models import (
     Endereco,
     Contato,
+    RedeSocial,
     Pagamento,
     Caracteristica,       
     CaracteristicaValor,  
@@ -40,6 +41,11 @@ class ContatoSerializer(serializers.ModelSerializer):
         model = Contato
         exclude = ['registro']
 
+class RedeSocialSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RedeSocial
+        exclude = ['registro']
+
 # ==========================================
 # 2. SERIALIZER PAI (Classe Base)
 # ==========================================
@@ -51,10 +57,13 @@ class RegistroBaseSerializer(serializers.ModelSerializer):
     """
     endereco = EnderecoSerializer(required=False, allow_null=True)
     contatos = ContatoSerializer(many=True, required=False)
+    redes_sociais = RedeSocialSerializer(many=True, required=False) 
+
 
     def create(self, validated_data):
         endereco_data = validated_data.pop('endereco', None)
         contatos_data = validated_data.pop('contatos', [])
+        redes_data = validated_data.pop('redes_sociais', []) 
         formas_pagamento_data = validated_data.pop('formas_pagamento', None)
 
         instancia = super().create(validated_data)
@@ -64,6 +73,9 @@ class RegistroBaseSerializer(serializers.ModelSerializer):
 
         for contato_data in contatos_data:
             Contato.objects.create(registro=instancia, **contato_data)
+
+        for rede_data in redes_data:                                 
+            RedeSocial.objects.create(registro=instancia, **rede_data)
             
         if formas_pagamento_data is not None:
             instancia.formas_pagamento.set(formas_pagamento_data)
@@ -73,6 +85,7 @@ class RegistroBaseSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         endereco_data = validated_data.pop('endereco', None)
         contatos_data = validated_data.pop('contatos', None)
+        redes_data = validated_data.pop('redes_sociais', None)
         formas_pagamento_data = validated_data.pop('formas_pagamento', None)
 
         instancia = super().update(instance, validated_data)
@@ -89,6 +102,11 @@ class RegistroBaseSerializer(serializers.ModelSerializer):
             instancia.contatos.all().delete()
             for contato_data in contatos_data:
                 Contato.objects.create(registro=instancia, **contato_data)
+
+        if redes_data is not None:                                    
+            instancia.redes_sociais.all().delete()
+            for rede_data in redes_data:
+                RedeSocial.objects.create(registro=instancia, **rede_data)
                 
         if formas_pagamento_data is not None:
             instancia.formas_pagamento.set(formas_pagamento_data)
