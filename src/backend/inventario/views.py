@@ -1,4 +1,5 @@
-from rest_framework import viewsets
+from rest_framework import viewsets, filters
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.permissions import IsAuthenticated
 
 from .permissions import IsSecretariaOrReadOnly, IsTradeOwnerOrSecretaria
@@ -30,6 +31,10 @@ class EstabelecimentoBaseViewSet(viewsets.ModelViewSet):
     - Filtra a listagem (get_queryset) para o Trade só ver seus próprios negócios.
     """
     permission_classes = [IsTradeOwnerOrSecretaria]
+
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    filterset_fields = ['ativo', 'classificacao']
+    search_fields = ['^nome_fantasia', '^razao_social', 'endereco__rua']
 
     def get_queryset(self):
         qs = super().get_queryset()
