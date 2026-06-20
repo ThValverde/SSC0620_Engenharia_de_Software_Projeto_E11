@@ -1,33 +1,33 @@
-```mermaid
 erDiagram
-  Pasta ||--o{ Anexo : organiza
-  Anexo ||--o{ Arquivo : armazena
-
+  Pasta ||--o{ Relatorio : "contém (opcional)"
+  Relatorio ||--o{ ArquivoAnexo : "armazena arquivos"
+  Relatorio }o--o{ TagSegmento : "classificado por"
 
   Pasta {
-      string nome_pasta_pk
-      date data_criacao
+      int id PK
+      string nome "Ex: Planejamento 2026"
+      datetime data_criacao
   }
 
-
-  Anexo {
-      int id_pk
-      string nome_sk
-      date creation_date
-      date modification_date
+  Relatorio {
+      int id PK
+      int pasta_id FK "nullable (Sem Pasta)"
+      string titulo
+      int quantidade_registros "nullable"
+      datetime data_criacao "Para filtro: Mais recentes"
+      datetime data_modificacao "Para filtro: Última Modificação"
   }
 
+  TagSegmento {
+      int id PK
+      string nome "Ex: Hotéis, Restaurantes"
+  }
 
-  Arquivo {
-      int id_pk
-      string file_name_sk
-      string formato_extensao
+  ArquivoAnexo {
+      int id PK
+      int relatorio_id FK
+      string nome_original "Ex: expectativa_natal.xlsx"
+      string arquivo_url "Caminho no disco ou S3"
       float tamanho_kb
-      date upload_date
-      string path
+      datetime data_upload
   }
-%%|o : Zero ou Um (Opcional)
-%%|| : Exatamente Umo
-%% { : Zero ou Muitos
-%% |{ : Um ou Muitos
-```
