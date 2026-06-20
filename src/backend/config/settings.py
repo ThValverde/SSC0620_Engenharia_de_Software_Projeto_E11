@@ -37,11 +37,17 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'corsheaders',
+    'rest_framework',
+    'rest_framework.authtoken',
+    'dj_rest_auth',
+    'django_filters',
     'inventario',
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -116,3 +122,32 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = 'static/'
+
+# CONFIGURAÇÃO DE SEGURANÇA E CORS
+
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000", 
+    "http://localhost:5173",  
+]
+
+# CONFIGURAÇÃO DO DJANGO REST FRAMEWORK E AUTH
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
+
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 10, # 10 registros por pagina - usar next ou previous para navegar entre paginas
+
+    'DEFAULT_FILTER_BACKENDS': [
+        'django_filters.rest_framework.DjangoFilterBackend',
+        'rest_framework.filters.SearchFilter',
+    ],
+}
+
+REST_USE_JWT = True
+
+JWT_AUTH_COOKIE = 'jwt-auth'
+JWT_AUTH_REFRESH_COOKIE = 'jwt-refresh'
+JWT_AUTH_HTTPONLY = False

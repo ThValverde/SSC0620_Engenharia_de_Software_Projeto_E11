@@ -23,4 +23,5 @@ urlpatterns = [
     # conexão de rotas do app inventario
     # usa prefixo api/inventario/ - todas as rotas desse arquivo
     path('api/inventario/', include('inventario.urls')),
+    path('api/auth/', include('dj_rest_auth.urls')),
 ]
