@@ -1,12 +1,13 @@
 from rest_framework import viewsets, filters
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.decorators import action
+from rest_framework.response import Response
 
 from .permissions import IsSecretariaOrReadOnly, IsTradeOwnerOrSecretaria
 
 from .models import (
-    Pagamento, Caracteristica, CaracteristicaValor, IndicadorODS,
-    MeioHospedagem, MeioAlimentacaoBebida, AtrativoLazerEntretenimento,
+    Pagamento, Secao, Caracteristica, EscopoCatalogo, CaracteristicaValor, IndicadorODS, MeioHospedagem, MeioAlimentacaoBebida, AtrativoLazerEntretenimento,
     EspacoEvento, AgenciaOperadoraTurismo, OrganizadorServicoEvento,
     LocadoraVeiculoTransporte, Artesanato, Banco, TemploReligioso,
     ServicoSaude, ServicoApoio, GuiaTurismo, RHC, GrupoFolclorico, TaxiAplicativo
@@ -57,6 +58,57 @@ class CaracteristicaViewSet(viewsets.ModelViewSet):
     queryset = Caracteristica.objects.all()
     serializer_class = CaracteristicaSerializer
     permission_classes = [IsSecretariaOrReadOnly]
+
+    @action(detail=False, methods=['get'], url_path='arvore')
+    def arvore(self, request):
+        """
+        Retorna a estrutura EAV aninhada em 3 níveis filtrada por escopo.
+        Exemplo de uso: /api/inventario/caracteristicas/arvore/?escopo=meio_hospedagem
+        """
+        escopo = request.query_params.get('escopo')
+        if not escopo:
+            return Response(
+                {"error": "O parâmetro de consulta 'escopo' é obrigatório. "
+                          "Use valores como: meio_hospedagem, atrativos, alimentacao."}, 
+                status=400
+            )
+            
+        # 1. Filtra as Seções (Nível 1) pertencentes ao escopo
+        secoes = Secao.objects.filter(escopo=escopo).order_by('ordem')
+        
+        estrutura = []
+        for secao in secoes:
+            # Captura todas as características vinculadas a esta seção específica
+            caracteristicas_secao = Caracteristica.objects.filter(secao=secao)
+            
+            # 2. Agrupa os itens dinamicamente pelo atributo 'nome' (Nível 2 - Subgrupo)
+            subgrupos_dict = {}
+            for carac in caracteristicas_secao:
+                if carac.nome not in subgrupos_dict:
+                    subgrupos_dict[carac.nome] = []
+                
+                # Injeta a opção (Nível 3 - Categoria)
+                subgrupos_dict[carac.nome].append({
+                    "id": carac.id,
+                    "categoria": carac.categoria,
+                    "customizada": carac.customizada
+                })
+            
+            # Transforma o dicionário temporário em uma lista estruturada para o JSON
+            lista_subgrupos = [
+                {"subgrupo_nome": nome_subgrupo, "opcoes": opcoes}
+                for nome_subgrupo, opcoes in subgrupos_dict.items()
+            ]
+            
+            # Monta o nó principal da árvore
+            estrutura.append({
+                "secao_id": secao.id,
+                "secao_nome": secao.nome,
+                "com_pergunta": secao.com_pergunta,
+                "subgrupos": lista_subgrupos
+            })
+            
+        return Response(estrutura)
 
 class CaracteristicaValorViewSet(viewsets.ModelViewSet):
     queryset = CaracteristicaValor.objects.all()

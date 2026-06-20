@@ -145,6 +145,14 @@ class MeioHospedagemSerializer(RegistroBaseSerializer):
     class Meta:
         model = MeioHospedagem
         fields = '__all__'
+        
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Limita o visualizador HTML do navegador a exibir APENAS características de hospedagem
+        if 'caracteristicas' in self.fields:
+            self.fields['caracteristicas'].queryset = Caracteristica.objects.filter(
+                escopo=EscopoCatalogo.MEIO_HOSPEDAGEM
+            )
 
 class AtrativoSerializer(RegistroBaseSerializer):
     class Meta:

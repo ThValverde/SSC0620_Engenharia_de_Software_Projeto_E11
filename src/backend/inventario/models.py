@@ -440,6 +440,8 @@ class Secao(models.Model):
     class Meta:
         db_table = "secao"
         constraints = [models.UniqueConstraint(fields=["escopo", "nome"], name="uq_secao_escopo_nome")]
+    def __str__(self):
+        return self.nome
 
 
 class Caracteristica(models.Model):
@@ -472,7 +474,9 @@ class Caracteristica(models.Model):
         ]
 
     def __str__(self):
-        return f"({self.get_escopo_display()}) {self.nome}: {self.categoria}"
+        if self.secao:
+            return f"{self.secao.nome} ➔ {self.nome} ➔ {self.categoria}"
+        return f"{self.nome} ➔ {self.categoria}"
 
 
 class CaracteristicaValor(models.Model):

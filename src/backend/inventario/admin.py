@@ -7,43 +7,43 @@ inlines cuja FK referencia um ancestral do model registrado.
 """
 
 from django.contrib import admin
-
 from .models import (
+    RegistroInventario,
     Estabelecimento,
-    AgenciaOperadoraTurismo,
-    Artesanato,
-    AtrativoLazerEntretenimento,
-    Banco,
-    Cadastur,
-    Caracteristica,
-    CaracteristicaValor,
-    Contato,
-    Endereco,
-    EspacoEvento,
-    EstabelecimentoCaracteristica,
-    EventoProgramado,
-    GrupoFolclorico,
-    GuiaTurismo,
-    IndicadorODS,
-    LocadoraVeiculoTransporte,
-    Medicao,
-    MeioAlimentacaoBebida,
     MeioHospedagem,
+    MeioAlimentacaoBebida,
+    AtrativoLazerEntretenimento,
+    EspacoEvento,
+    AgenciaOperadoraTurismo,
     OrganizadorServicoEvento,
+    LocadoraVeiculoTransporte,
+    Artesanato,
+    Banco,
+    TemploReligioso,
+    ServicoSaude,
+    ServicoApoio,
+    GuiaTurismo,
+    RHC,
+    GrupoFolclorico,
+    TaxiAplicativo,
+    Endereco,
+    Contato,
+    RedeSocial,
+    Cadastur,
+    IndicadorODS,
+    RegistroODS,
+    EstabelecimentoCaracteristica,
+    Caracteristica,
+    Medicao,
+    CaracteristicaValor,
+    EventoProgramado,
+    VinculoTrade,
     Pagamento,
     ProdutoServico,
-    RedeSocial,
-    RegistroODS,
-    RHC,
-    ServicoApoio,
-    ServicoSaude,
-    TaxiAplicativo,
-    TemploReligioso,
-    VinculoTrade,
+    EscopoCatalogo
 )
 
 # ----------------------------- Inlines de suporte ---------------------------
-
 
 class EnderecoInline(admin.StackedInline):
     model = Endereco
@@ -73,18 +73,6 @@ class RegistroODSInline(admin.TabularInline):
     autocomplete_fields = ["indicador"]
 
 
-class CaracteristicaInline(admin.TabularInline):
-    model = EstabelecimentoCaracteristica
-    extra = 0
-    autocomplete_fields = ["caracteristica"]
-
-
-class MedicaoInline(admin.TabularInline):
-    model = Medicao
-    extra = 0
-    autocomplete_fields = ["metrica"]
-
-
 class ProdutoServicoInline(admin.TabularInline):
     model = ProdutoServico
     extra = 0
@@ -92,21 +80,27 @@ class ProdutoServicoInline(admin.TabularInline):
 
 # ----------------------------- Bases reutilizáveis --------------------------
 
-
 class RegistroBaseAdmin(admin.ModelAdmin):
     """Base p/ entidades independentes (Guia, RHC, Grupo, Táxi)."""
-
     inlines = [EnderecoInline, ContatoInline, RedeSocialInline, RegistroODSInline]
     readonly_fields = ["registro_cadastur", "criado_em", "atualizado_em"]
 
 
-class EstabelecimentoBaseAdmin(RegistroBaseAdmin):
-    """Base p/ todas as filhas de Estabelecimento."""
+MAPA_TIPO_ESCOPO = {
+    RegistroInventario.Tipo.MEIO_HOSPEDAGEM: EscopoCatalogo.MEIO_HOSPEDAGEM,
+    RegistroInventario.Tipo.MEIO_ALIMENTACAO_BEBIDA: EscopoCatalogo.ALIMENTACAO,
+    RegistroInventario.Tipo.ATRATIVO: EscopoCatalogo.ATRATIVOS,
+    RegistroInventario.Tipo.ESPACO_EVENTO: EscopoCatalogo.ESPACOS_EVENTOS,
+    RegistroInventario.Tipo.AGENCIA_TURISMO: EscopoCatalogo.AGENCIAS,
+    RegistroInventario.Tipo.ORGANIZADOR_EVENTO: EscopoCatalogo.ORGANIZADORES,
+    RegistroInventario.Tipo.ARTESANATO: EscopoCatalogo.ARTESANATO,
+}
 
+
+class EstabelecimentoBaseAdmin(RegistroBaseAdmin):
+    """Base para filhas de Estabelecimento com inlines e querysets dinâmicos por escopo."""
     inlines = RegistroBaseAdmin.inlines + [
         CadasturInline,
-        CaracteristicaInline,
-        MedicaoInline,
         ProdutoServicoInline,
     ]
     list_display = ["nome_fantasia", "cnpj", "classificacao", "registro_cadastur"]
@@ -117,21 +111,58 @@ class EstabelecimentoBaseAdmin(RegistroBaseAdmin):
     def registro_cadastur(self, obj):
         return obj.possui_cadastur
 
+    def get_inline_instances(self, request, obj=None):
+        """
+        Garante o isolamento estrito de catálogo por segmento no painel administrativo.
+        """
+        inline_instances = super().get_inline_instances(request, obj)
+        
+        tipo_registro = getattr(self.model, 'TIPO_REGISTRO', None)
+        escopo_alvo = MAPA_TIPO_ESCOPO.get(tipo_registro)
+        
+        if escopo_alvo:
+            class ScopedCaracteristicaInline(admin.TabularInline):
+                model = EstabelecimentoCaracteristica
+                extra = 1  
+                verbose_name = "Característica"
+                verbose_name_plural = "Filtro de Características e Acessibilidade"
+                
+                def formfield_for_foreignkey(self, db_field, request, **kwargs):
+                    if db_field.name == "caracteristica":
+                        kwargs["queryset"] = Caracteristica.objects.filter(
+                            escopo=escopo_alvo
+                        ).order_by('secao__nome', 'nome', 'categoria')
+                    return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
+            class ScopedMedicaoInline(admin.TabularInline):
+                model = Medicao
+                extra = 1
+                verbose_name = "Métrica"
+                verbose_name_plural = "Filtro de Métricas Numéricas (Capacidades)"
+                
+                def formfield_for_foreignkey(self, db_field, request, **kwargs):
+                    if db_field.name == "metrica":
+                        kwargs["queryset"] = CaracteristicaValor.objects.filter(
+                            escopo=escopo_alvo
+                        ).order_by('nome', 'categoria')
+                    return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
+            inline_instances.append(ScopedCaracteristicaInline(self.model, self.admin_site))
+            inline_instances.append(ScopedMedicaoInline(self.model, self.admin_site))
+            
+        return inline_instances
+
 
 # ----------------------------- Filhas de Estabelecimento --------------------
 
-
 @admin.register(Estabelecimento)
 class EstabelecimentoAdmin(admin.ModelAdmin):
-    """Listagem unificada (todas as filhas aparecem aqui via herança).
-    Cadastro deve ser feito pela filha específica."""
-
     list_display = ["nome_fantasia", "cnpj", "tipo", "classificacao"]
     list_filter = ["tipo"]
     search_fields = ["nome_fantasia", "razao_social", "cnpj"]
 
     def has_add_permission(self, request):
-        return False  # criar sempre pela especialização
+        return False  # Criar sempre pela especialização (filhas)
 
 
 @admin.register(MeioHospedagem)
@@ -171,7 +202,6 @@ for _modelo in (
 
 # ----------------------------- Entidades independentes ----------------------
 
-
 @admin.register(GuiaTurismo)
 class GuiaTurismoAdmin(RegistroBaseAdmin):
     inlines = RegistroBaseAdmin.inlines + [CadasturInline]
@@ -200,12 +230,14 @@ class TaxiAplicativoAdmin(RegistroBaseAdmin):
 
 # ----------------------------- Catálogos e demais ---------------------------
 
-
 @admin.register(Caracteristica)
 class CaracteristicaAdmin(admin.ModelAdmin):
     list_display = ["escopo", "nome", "categoria", "customizada"]
     list_filter = ["escopo", "customizada"]
     search_fields = ["nome", "categoria"]
+    fields = ["secao", "nome", "categoria", "escopo", "customizada"]
+
+    
 
 
 @admin.register(CaracteristicaValor)
