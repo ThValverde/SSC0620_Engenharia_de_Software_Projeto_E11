@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Plus, Search, Pencil, Trash2, X, ChevronDown,
   CheckCircle2, XCircle, Filter, Download,
@@ -31,19 +31,6 @@ const segmentos: Segmento[] = [
   "Transporte Turístico",
 ];
 
-const initialData: Estabelecimento[] = [
-  { id: 1, razaoSocial: "Thermas dos Laranjais S.A.", nomeFantasia: "Thermas dos Laranjais", segmento: "Atrativo Turístico", cnpj: "01.234.567/0001-89", status: "Ativo" },
-  { id: 2, razaoSocial: "Hotel Marupiara Ltda.", nomeFantasia: "Hotel Marupiara", segmento: "Meio de Hospedagem", cnpj: "02.345.678/0001-90", status: "Ativo" },
-  { id: 3, razaoSocial: "Restaurante Sabores do Cerrado ME", nomeFantasia: "Sabores do Cerrado", segmento: "Alimentação", cnpj: "03.456.789/0001-01", status: "Ativo" },
-  { id: 4, razaoSocial: "Clínica Saúde Turista Ltda.", nomeFantasia: "Clínica Turista", segmento: "Serviço de Saúde", cnpj: "04.567.890/0001-12", status: "Ativo" },
-  { id: 5, razaoSocial: "Viagens Olímpia Agência de Turismo", nomeFantasia: "Olímpia Tours", segmento: "Agência de Viagem", cnpj: "05.678.901/0001-23", status: "Ativo" },
-  { id: 6, razaoSocial: "Pousada Brisa das Águas ME", nomeFantasia: "Pousada Brisa", segmento: "Meio de Hospedagem", cnpj: "06.789.012/0001-34", status: "Inativo" },
-  { id: 7, razaoSocial: "Transportes Turísticos Silva Eireli", nomeFantasia: "Silva Turismo", segmento: "Transporte Turístico", cnpj: "07.890.123/0001-45", status: "Ativo" },
-  { id: 8, razaoSocial: "Hot Park Entretenimento S.A.", nomeFantasia: "Hot Park", segmento: "Atrativo Turístico", cnpj: "08.901.234/0001-56", status: "Ativo" },
-  { id: 9, razaoSocial: "Resort Beira Rio Ltda.", nomeFantasia: "Beira Rio Resort", segmento: "Meio de Hospedagem", cnpj: "09.012.345/0001-67", status: "Ativo" },
-  { id: 10, razaoSocial: "Churrascaria Pantaneira ME", nomeFantasia: "Pantaneira Grill", segmento: "Alimentação", cnpj: "10.123.456/0001-78", status: "Inativo" },
-];
-
 const segmentoColors: Record<Segmento, string> = {
   "Meio de Hospedagem": "bg-blue-100 text-blue-700",
   "Atrativo Turístico": "bg-amber-100 text-amber-700",
@@ -51,6 +38,15 @@ const segmentoColors: Record<Segmento, string> = {
   "Serviço de Saúde": "bg-violet-100 text-violet-700",
   "Agência de Viagem": "bg-cyan-100 text-cyan-700",
   "Transporte Turístico": "bg-orange-100 text-orange-700",
+};
+
+const segmentMapping: Record<string, string> = {
+  "Meio de Hospedagem": "hospedagens",
+  "Atrativo Turístico": "atrativos",
+  "Alimentação": "alimentacao",
+  "Serviço de Saúde": "saude",
+  "Agência de Viagem": "agencias",
+  "Transporte Turístico": "locadoras-transporte",
 };
 
 interface FormData {
@@ -103,7 +99,10 @@ const tabs: { key: TabKey; label: string; icon: typeof FileText }[] = [
 ];
 
 export function Inventario() {
-  const [dados, setDados] = useState<Estabelecimento[]>(initialData);
+  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+  
+  const [dados, setDados] = useState<Estabelecimento[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filterSegmento, setFilterSegmento] = useState("Todos");
   const [filterStatus, setFilterStatus] = useState("Todos");
@@ -111,9 +110,65 @@ export function Inventario() {
   const [editId, setEditId] = useState<number | null>(null);
   const [formData, setFormData] = useState<FormData>(emptyForm);
   const [activeTab, setActiveTab] = useState<TabKey>("cadastrais");
-  const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<Estabelecimento | null>(null);
 
   const [modoAdmin, setModoAdmin] = useState(false);
+
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem("access_token");
+    return {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    };
+  };
+
+  useEffect(() => {
+    const fetchInventario = async () => {
+      try {
+        setIsLoading(true);
+        const headers = getAuthHeaders();
+        
+        // Dispara requisições GET simultâneas para todas as sub-rotas do Django
+        const endpoints = Object.values(segmentMapping);
+        const promises = endpoints.map(endpoint => 
+          fetch(`${API_URL}/inventario/${endpoint}/`, { headers })
+            .then(res => res.ok ? res.json() : [])
+        );
+        
+        const results = await Promise.all(promises);
+        let todosDados: Estabelecimento[] = [];
+        
+        // Junta os resultados de todas as rotas numa única lista para a tabela
+        results.forEach((data, index) => {
+           const items = data.results || data; 
+           if (Array.isArray(items)) {
+              const endpointName = endpoints[index];
+              const segmentoOriginal = Object.keys(segmentMapping).find(
+                key => segmentMapping[key] === endpointName
+              ) as Segmento;
+              
+              const formatados = items.map((item: any) => ({
+                id: item.id,
+                razaoSocial: item.razao_social || item.razaoSocial || "",
+                nomeFantasia: item.nome_fantasia || item.nomeFantasia || "",
+                segmento: item.segmento || segmentoOriginal,
+                cnpj: item.cnpj || item.cnpj_cpf || "",
+                status: item.ativo ? "Ativo" : "Inativo"
+              }));
+              todosDados = [...todosDados, ...formatados];
+           }
+        });
+        
+        setDados(todosDados);
+      } catch (error) {
+        console.error("Erro de rede:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchInventario();
+  }, []);
 
   const filtered = dados.filter((d) => {
     const matchSearch =
@@ -146,36 +201,85 @@ export function Inventario() {
     setShowModal(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!formData.razaoSocial || !formData.segmento) return;
-    if (editId !== null) {
-      setDados((prev) =>
-        prev.map((d) =>
-          d.id === editId
-            ? { ...d, razaoSocial: formData.razaoSocial, nomeFantasia: formData.nomeFantasia, cnpj: formData.cnpj, segmento: formData.segmento as Segmento, status: formData.status }
-            : d
-        )
-      );
-    } else {
-      const newId = Math.max(...dados.map((d) => d.id)) + 1;
-      setDados((prev) => [
-        ...prev,
-        {
-          id: newId,
-          razaoSocial: formData.razaoSocial,
-          nomeFantasia: formData.nomeFantasia,
-          segmento: formData.segmento as Segmento,
-          cnpj: formData.cnpj,
-          status: "Ativo",
-        },
-      ]);
+    
+    // 1. Limpa a máscara do CNPJ (remove pontos, barras e traços)
+    // Deixa apenas os números para agradar ao RegexValidator do Django
+    const cnpjLimpo = formData.cnpj.replace(/\D/g, '');
+
+    const payload = {
+      razao_social: formData.razaoSocial,
+      // 2. Se o Nome Fantasia estiver vazio, enviamos a Razão Social para o Django não bloquear
+      nome_fantasia: formData.nomeFantasia || formData.razaoSocial,
+      // 3. O nome correto do campo no Django é 'cnpj'
+      cnpj: cnpjLimpo,
+      ativo: formData.status === "Ativo"
+    };
+
+    try {
+      const isEdit = editId !== null;
+      const endpoint = segmentMapping[formData.segmento]; 
+      
+      const url = isEdit 
+        ? `${API_URL}/inventario/${endpoint}/${editId}/` 
+        : `${API_URL}/inventario/${endpoint}/`;
+      
+      const response = await fetch(url, {
+        method: isEdit ? "PUT" : "POST",
+        headers: getAuthHeaders(),
+        credentials: 'include', // ISSO PERMITE O ENVIO DO COOKIE DE SESSÃO
+        body: JSON.stringify(payload),
+      });
+
+      if (response.ok) {
+        const savedData = await response.json();
+        const formatted = {
+            id: savedData.id,
+            razaoSocial: savedData.razao_social,
+            nomeFantasia: savedData.nome_fantasia,
+            segmento: formData.segmento as Segmento,
+            cnpj: savedData.cnpj || "",
+            status: savedData.ativo ? "Ativo" : "Inativo"
+        };
+        
+        if (isEdit) {
+          setDados((prev) => prev.map((d) => (d.id === editId && d.segmento === formData.segmento) ? formatted : d));
+        } else {
+          setDados((prev) => [...prev, formatted]);
+        }
+        setShowModal(false);
+        setFormData(emptyForm);
+      } else {
+        const errorData = await response.text();
+        console.error("Erro do Django:", errorData);
+        alert("O servidor recusou os dados. Detalhes:\n" + errorData);
+      }
+    } catch (error) {
+      console.error("Erro na requisição:", error);
+      alert("Erro de ligação. Verifique se o servidor Django (backend) está a correr.");
     }
-    setShowModal(false);
   };
 
-  const handleDelete = (id: number) => {
-    setDados((prev) => prev.filter((d) => d.id !== id));
-    setDeleteConfirm(null);
+  const handleDelete = async (item: Estabelecimento) => {
+    try {
+      const endpoint = segmentMapping[item.segmento];
+      const response = await fetch(`${API_URL}/inventario/${endpoint}/${item.id}/`, {
+        method: "DELETE",
+        headers: getAuthHeaders(),
+      });
+
+      if (response.ok || response.status === 204) {
+        setDados((prev) => prev.filter((d) => !(d.id === item.id && d.segmento === item.segmento)));
+        setDeleteConfirm(null);
+      } else {
+        console.error("Erro ao deletar o estabelecimento");
+        alert("Não foi possível eliminar o registo.");
+      }
+    } catch (error) {
+      console.error("Erro na requisição:", error);
+      alert("Erro de ligação ao tentar eliminar.");
+    }
   };
 
   const isHospedagem = formData.segmento === "Meio de Hospedagem";
@@ -218,7 +322,7 @@ export function Inventario() {
         </div>
       </div>
 
-      {/* Banner Modo Admin — apenas indica que edições se aplicam ao estado atual */}
+      {/* Banner Modo Admin */}
       {modoAdmin && (
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-start gap-3">
           <Shield size={18} className="text-[#1a6fbf] mt-0.5 flex-shrink-0" />
@@ -283,6 +387,7 @@ export function Inventario() {
           Exibindo <strong className="text-[#0c2340]">{filtered.length}</strong> de{" "}
           <strong className="text-[#0c2340]">{dados.length}</strong> estabelecimentos
         </span>
+        {isLoading && <span className="text-sm text-[#1a6fbf] animate-pulse">A carregar dados...</span>}
         <div className="flex items-center gap-3 ml-auto">
           <span className="flex items-center gap-1.5 text-xs text-emerald-600">
             <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
@@ -341,7 +446,7 @@ export function Inventario() {
                       <Pencil size={14} />
                     </button>
                     <button
-                      onClick={() => setDeleteConfirm(est.id)}
+                      onClick={() => setDeleteConfirm(est)}
                       className="p-1.5 rounded-md text-[#64748b] hover:bg-red-50 hover:text-red-500 transition-colors"
                       title="Excluir"
                     >
@@ -351,7 +456,7 @@ export function Inventario() {
                 </td>
               </tr>
             ))}
-            {filtered.length === 0 && (
+            {filtered.length === 0 && !isLoading && (
               <tr>
                 <td colSpan={7} className="px-4 py-12 text-center text-sm text-[#94a3b8]">
                   Nenhum estabelecimento encontrado com os filtros aplicados.
