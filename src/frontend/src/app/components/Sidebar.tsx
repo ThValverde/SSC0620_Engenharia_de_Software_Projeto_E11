@@ -1,4 +1,4 @@
-import { NavLink, useLocation } from "react-router";
+import { NavLink, useLocation, useNavigate } from "react-router";
 import {
   LayoutDashboard,
   Building2,
@@ -9,38 +9,60 @@ import {
   UploadCloud,
   Store,
   Database,
+  Users,
 } from "lucide-react";
+import { useAuth } from "../contexts/AuthContext";
 
-const navItems = [
+interface NavItem {
+  label: string;
+  sublabel: string;
+  icon: React.ComponentType<{ size: number; className: string }>;
+  to: string;
+  requiresRole?: string[];
+}
+
+const baseNavItems: NavItem[] = [
   {
     label: "Dashboard Inicial",
     sublabel: "Visão Geral",
     icon: LayoutDashboard,
-    to: "/",
+    to: "/dashboard",
+    requiresRole: ["Secretaria_Admin", "Secretaria_Staff"],
   },
   {
     label: "Inventário Turístico",
     sublabel: "Entidades",
     icon: Building2,
     to: "/inventario",
+    requiresRole: ["Secretaria_Admin", "Secretaria_Staff"],
+  },
+  {
+    label: "Gestão de Usuários",
+    sublabel: "Controle de Acesso",
+    icon: Users,
+    to: "/users",
+    requiresRole: ["Secretaria_Admin", "Secretaria_Staff"],
   },
   {
     label: "Central de Importação",
     sublabel: "Upload de Dados",
     icon: UploadCloud,
     to: "/importacao",
+    requiresRole: ["Secretaria_Admin", "Secretaria_Staff"],
   },
   {
     label: "Cruzamento de Dados",
     sublabel: "Consultas",
     icon: Database,
     to: "/cruzamento",
+    requiresRole: ["Secretaria_Admin", "Secretaria_Staff"],
   },
   {
     label: "Histórico e Anexos",
     sublabel: "Documentos",
     icon: FolderOpen,
     to: "/historico",
+    requiresRole: ["Secretaria_Admin", "Secretaria_Staff"],
   },
   {
     label: "Portal do Trade",
@@ -52,11 +74,36 @@ const navItems = [
 
 export function Sidebar() {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { canAccessModule, user, isTradeUser, logout, isSuperuser, isSecretariaAdmin } = useAuth();
 
   const isActive = (to: string) => {
     if (to === "/") return location.pathname === "/";
     return location.pathname.startsWith(to);
   };
+
+  const filteredNavItems = baseNavItems.filter((item) => {
+    if (!item.requiresRole) return true;
+    return item.requiresRole.some((role) => {
+      if (role === "Secretaria_Admin" || role === "Secretaria_Staff") {
+        return !isTradeUser();
+      }
+      return false;
+    });
+  });
+
+  const handleLogout = () => {
+    logout();
+    navigate("/login");
+  };
+
+  const userRole = isSuperuser() 
+    ? "Admin Django" 
+    : isSecretariaAdmin() 
+      ? "Admin OTO" 
+      : isTradeUser() 
+        ? "Usuário Trade" 
+        : "Staff OTO";
 
   return (
     <aside className="w-64 flex-shrink-0 flex flex-col bg-[#0c2340] text-white min-h-screen">
@@ -81,13 +128,15 @@ export function Sidebar() {
       <div className="px-5 py-4 border-b border-white/10">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-full bg-[#1a6fbf] flex items-center justify-center text-white font-semibold text-sm flex-shrink-0">
-            AD
+            {user?.username?.substring(0, 2).toUpperCase() || "U"}
           </div>
           <div className="min-w-0">
             <p className="text-white text-sm font-medium truncate">
-              Secretaria Municipal
+              {user?.first_name && user?.last_name
+                ? `${user.first_name} ${user.last_name}`
+                : user?.username || "Usuário"}
             </p>
-            <p className="text-white/50 text-xs truncate">Administrador</p>
+            <p className="text-white/50 text-xs truncate">{userRole}</p>
           </div>
         </div>
       </div>
@@ -97,7 +146,7 @@ export function Sidebar() {
         <p className="text-white/30 text-[10px] font-semibold uppercase tracking-wider px-3 mb-3">
           Menu Principal
         </p>
-        {navItems.map((item) => {
+        {filteredNavItems.map((item) => {
           const Icon = item.icon;
           const active = isActive(item.to);
           return (
@@ -131,7 +180,10 @@ export function Sidebar() {
 
       {/* Footer */}
       <div className="px-3 py-4 border-t border-white/10">
-        <button className="flex items-center gap-3 px-3 py-2.5 w-full rounded-lg text-white/50 hover:text-white/80 hover:bg-white/8 transition-all text-sm">
+        <button
+          onClick={handleLogout}
+          className="flex items-center gap-3 px-3 py-2.5 w-full rounded-lg text-white/50 hover:text-white/80 hover:bg-white/8 transition-all text-sm"
+        >
           <LogOut size={16} />
           <span>Sair do Sistema</span>
         </button>
