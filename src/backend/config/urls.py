@@ -16,6 +16,7 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
+from inventario.views import CadastrarUsuarioView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -23,6 +24,13 @@ urlpatterns = [
     # conexão de rotas do app inventario
     # usa prefixo api/inventario/ - todas as rotas desse arquivo
     path('api/inventario/', include('inventario.urls')),
+    
+    # Endpoint customizado de cadastro de usuários com RBAC
+    path('api/auth/cadastrar-usuario/', CadastrarUsuarioView.as_view(), name='cadastrar-usuario'),
+    
+    # Rotas padrão de autenticação (dj-rest-auth)
     path('api/auth/', include('dj_rest_auth.urls')),
+    
     path('api/historico/', include('historico.urls')),
 ]
+

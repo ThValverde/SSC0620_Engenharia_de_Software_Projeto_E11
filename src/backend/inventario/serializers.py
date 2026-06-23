@@ -228,3 +228,135 @@ class TaxiAplicativoSerializer(RegistroBaseSerializer):
     class Meta:
         model = TaxiAplicativo
         fields = '__all__'
+
+
+# ==========================================
+# 5. SERIALIZER DE CADASTRO DE USUÁRIOS (RBAC)
+# ==========================================
+
+class CadastroUsuarioSerializer(serializers.Serializer):
+    """
+    Serializer para criação de usuários com controle estrito de RBAC.
+    Previne escalonamento de privilégios aplicando regras de negócio
+    no método validate() e criando os vínculos apropriados no create().
+    """
+    email = serializers.EmailField()
+    password = serializers.CharField(write_only=True)
+    tipo_usuario = serializers.ChoiceField(
+        choices=['admin_oto', 'usuario_oto', 'trade'],
+        help_text='Tipo de usuário: admin_oto (Admin OTO), usuario_oto (Staff OTO), trade (Trade Partner)'
+    )
+    estabelecimento_id = serializers.IntegerField(required=False, allow_null=True)
+    nivel_permissao = serializers.CharField(
+        required=False,
+        allow_null=True,
+        help_text='Nível de permissão para usuários Trade: admin, editor ou visualizador'
+    )
+
+    def validate(self, data):
+        """
+        Aplicar regras RBAC para prevenir escalonamento de privilégios:
+        - admin_oto: apenas superuser pode criar
+        - usuario_oto: apenas superuser ou Secretaria_Admin pode criar
+        - trade: superuser, Secretaria_Admin ou Secretaria_Staff podem criar (obrigatório estabelecimento_id)
+        """
+        from django.contrib.auth.models import User, Group
+        from rest_framework.exceptions import PermissionDenied, ValidationError
+
+        request = self.context.get('request')
+        if not request or not request.user.is_authenticated:
+            raise PermissionDenied('Usuário não autenticado.')
+
+        current_user = request.user
+        tipo_usuario = data.get('tipo_usuario')
+
+        # Regra 1: admin_oto - apenas superuser pode criar
+        if tipo_usuario == 'admin_oto':
+            if not current_user.is_superuser:
+                raise PermissionDenied(
+                    'Apenas superuser pode criar usuários do tipo admin_oto.'
+                )
+
+        # Regra 2: usuario_oto - apenas superuser ou Secretaria_Admin
+        elif tipo_usuario == 'usuario_oto':
+            is_admin = current_user.groups.filter(name='Secretaria_Admin').exists()
+            if not (current_user.is_superuser or is_admin):
+                raise PermissionDenied(
+                    'Apenas superuser ou membros de Secretaria_Admin podem criar usuários do tipo usuario_oto.'
+                )
+
+        # Regra 3: trade - superuser, Secretaria_Admin ou Secretaria_Staff
+        elif tipo_usuario == 'trade':
+            is_admin = current_user.groups.filter(name='Secretaria_Admin').exists()
+            is_staff = current_user.groups.filter(name='Secretaria_Staff').exists()
+            if not (current_user.is_superuser or is_admin or is_staff):
+                raise PermissionDenied(
+                    'Apenas superuser, Secretaria_Admin ou Secretaria_Staff podem criar usuários do tipo trade.'
+                )
+            
+            # Validar que estabelecimento_id foi fornecido para trade
+            if not data.get('estabelecimento_id'):
+                raise ValidationError({
+                    'estabelecimento_id': 'Este campo é obrigatório para usuários do tipo trade.'
+                })
+
+        return data
+
+    def create(self, validated_data):
+        """
+        Criar usuário e associá-lo aos grupos e vínculos apropriados:
+        - admin_oto: adiciona ao grupo Secretaria_Admin, é_staff e is_superuser
+        - usuario_oto: adiciona ao grupo Secretaria_Staff, é_staff
+        - trade: cria VinculoTrade com o estabelecimento e nível de permissão
+        """
+        from django.contrib.auth.models import User, Group
+        from .models import Estabelecimento, VinculoTrade
+
+        email = validated_data['email']
+        password = validated_data['password']
+        tipo_usuario = validated_data['tipo_usuario']
+        estabelecimento_id = validated_data.get('estabelecimento_id')
+        nivel_permissao = validated_data.get('nivel_permissao', 'visualizador')
+
+        # Criar usuário
+        user = User.objects.create_user(
+            username=email,
+            email=email,
+            password=password
+        )
+
+        # Garantir que os grupos existem (usar get_or_create)
+        admin_oto_group, _ = Group.objects.get_or_create(name='Secretaria_Admin')
+        staff_oto_group, _ = Group.objects.get_or_create(name='Secretaria_Staff')
+
+        # Adicionar ao grupo apropriado e configurar permissões de staff
+        if tipo_usuario == 'admin_oto':
+            user.groups.add(admin_oto_group)
+            user.is_staff = True
+            user.is_superuser = False
+            user.save()
+
+        elif tipo_usuario == 'usuario_oto':
+            user.groups.add(staff_oto_group)
+            user.is_staff = True
+            user.is_superuser = False
+            user.save()
+
+        elif tipo_usuario == 'trade':
+            # Buscar o estabelecimento
+            try:
+                estabelecimento = Estabelecimento.objects.get(id=estabelecimento_id)
+            except Estabelecimento.DoesNotExist:
+                user.delete()  # Desfazer criação do usuário se estabelecimento não existe
+                raise serializers.ValidationError({
+                    'estabelecimento_id': f'Estabelecimento com ID {estabelecimento_id} não existe.'
+                })
+
+            # Criar VinculoTrade
+            VinculoTrade.objects.create(
+                usuario=user,
+                estabelecimento=estabelecimento,
+                nivel_permissao=nivel_permissao
+            )
+
+        return user

@@ -1131,6 +1131,16 @@ class VinculoTrade(models.Model):
     estabelecimento = models.ForeignKey(
         Estabelecimento, on_delete=models.CASCADE, related_name="responsaveis"
     )
+    nivel_permissao = models.CharField(
+        max_length=50,
+        default='visualizador',
+        choices=[
+            ('admin', 'Administrador'),
+            ('editor', 'Editor'),
+            ('visualizador', 'Visualizador'),
+        ],
+        help_text='Nível de permissão do usuário neste estabelecimento'
+    )
 
     class Meta:
         db_table = "vinculo_trade"

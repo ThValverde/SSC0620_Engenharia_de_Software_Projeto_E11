@@ -3,6 +3,8 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.views import APIView
+from rest_framework import status
 
 from .permissions import IsSecretariaOrReadOnly, IsTradeOwnerOrSecretaria
 
@@ -19,7 +21,8 @@ from .serializers import (
     OrganizadorServicoEventoSerializer, LocadoraVeiculoTransporteSerializer,
     ArtesanatoSerializer, BancoSerializer, TemploReligiosoSerializer,
     ServicoSaudeSerializer, ServicoApoioSerializer, GuiaTurismoSerializer,
-    RHCSerializer, GrupoFolcloricoSerializer, TaxiAplicativoSerializer
+    RHCSerializer, GrupoFolcloricoSerializer, TaxiAplicativoSerializer,
+    CadastroUsuarioSerializer
 )
 
 
@@ -193,3 +196,56 @@ class TaxiAplicativoViewSet(viewsets.ModelViewSet):
     queryset = TaxiAplicativo.objects.all()
     serializer_class = TaxiAplicativoSerializer
     permission_classes = [IsSecretariaOrReadOnly]
+
+
+# =====================================================
+# ENDPOINT DE CADASTRO DE USUÁRIOS (RBAC)
+# =====================================================
+
+class CadastrarUsuarioView(APIView):
+    """
+    Endpoint para criação de usuários com controle estrito de RBAC.
+    
+    POST /api/auth/cadastrar-usuario/
+    Payload:
+    {
+        "email": "usuario@example.com",
+        "password": "senhaSegura123",
+        "tipo_usuario": "trade|usuario_oto|admin_oto",
+        "estabelecimento_id": 1,  # Obrigatório se tipo_usuario == "trade"
+        "nivel_permissao": "admin|editor|visualizador"  # Opcional para trade, padrão: visualizador
+    }
+    
+    Response (201):
+    {
+        "id": 123,
+        "email": "usuario@example.com",
+        "username": "usuario@example.com",
+        "tipo_usuario": "trade"
+    }
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = CadastroUsuarioSerializer(
+            data=request.data,
+            context={'request': request}
+        )
+
+        if serializer.is_valid():
+            user = serializer.save()
+            return Response(
+                {
+                    'id': user.id,
+                    'email': user.email,
+                    'username': user.username,
+                    'tipo_usuario': request.data.get('tipo_usuario'),
+                    'mensagem': 'Usuário criado com sucesso.'
+                },
+                status=status.HTTP_201_CREATED
+            )
+
+        return Response(
+            serializer.errors,
+            status=status.HTTP_400_BAD_REQUEST
+        )
