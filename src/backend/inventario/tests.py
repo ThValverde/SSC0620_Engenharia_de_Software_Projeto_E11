@@ -35,6 +35,7 @@ from .models import (
     RegistroODS,
     ServicoApoio,
 )
+from .serializers import MeioHospedagemSerializer, TradePortalMeuEstabelecimentoSerializer
 from .views import DashboardResumoView
 
 
@@ -253,6 +254,56 @@ class DashboardResumoTests(TestCase):
         self.assertEqual(response.data["ods"][0]["percent"], 100)
         self.assertEqual(response.data["ods"][1]["percent"], 0)
         self.assertIsNone(response.data["infra"]["estimativaLeitosConstrucao"])
+
+
+class DynamicODSSerializerTests(TestCase):
+    def setUp(self):
+        self.hotel = MeioHospedagem.objects.create(nome_fantasia="Hotel A")
+        self.indicador_quali = IndicadorODS.objects.create(
+            eixo=1,
+            ods=3,
+            descricao="Acesso PCD",
+            natureza=IndicadorODS.Natureza.QUALITATIVO,
+        )
+        self.indicador_quant = IndicadorODS.objects.create(
+            eixo=2,
+            ods=5,
+            descricao="Mulheres em posição de liderança",
+            natureza=IndicadorODS.Natureza.QUANTITATIVO,
+        )
+
+    def test_serializer_exposes_dynamic_ods_catalog(self):
+        data = MeioHospedagemSerializer(self.hotel).data
+        self.assertEqual(len(data["sustentabilidade"]), 2)
+        self.assertEqual(data["sustentabilidade"][0]["descricao"], "Acesso PCD")
+        self.assertFalse(data["sustentabilidade"][0]["ativo"])
+
+    def test_serializer_syncs_dynamic_ods_payload(self):
+        serializer = MeioHospedagemSerializer(
+            self.hotel,
+            data={
+                "nome_fantasia": "Hotel A",
+                "sustentabilidade": [
+                    {"id": self.indicador_quali.id, "ativo": True},
+                    {"id": self.indicador_quant.id, "ativo": True, "valor": 75},
+                ],
+            },
+            partial=True,
+        )
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        serializer.save()
+
+        self.assertEqual(self.hotel.indicadores_ods.count(), 2)
+        self.assertTrue(self.hotel.indicadores_ods.filter(indicador=self.indicador_quali).exists())
+        self.assertEqual(
+            self.hotel.indicadores_ods.get(indicador=self.indicador_quant).valor,
+            75,
+        )
+
+    def test_trade_portal_serializer_exposes_dynamic_ods(self):
+        data = TradePortalMeuEstabelecimentoSerializer(self.hotel).data
+        self.assertEqual(len(data["sustentabilidade"]), 2)
+        self.assertEqual(data["sustentabilidade"][1]["descricao"], "Mulheres em posição de liderança")
 
 
 class GrupoFolcloricoTests(TestCase):

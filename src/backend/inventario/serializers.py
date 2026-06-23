@@ -417,34 +417,158 @@ class TradePortalMaoDeObraSerializer(serializers.Serializer):
     qtde_funcionarios_temporarios = serializers.IntegerField(required=False, allow_null=True, min_value=0)
 
 
-class TradePortalSustentabilidadeSerializer(serializers.Serializer):
-    acessibilidade_pcd = serializers.BooleanField(required=False)
-    mulheres_lideranca = serializers.BooleanField(required=False)
-    gestao_residuos = serializers.BooleanField(required=False)
-    fontes_renovaveis = serializers.BooleanField(required=False)
+class ODSStateField(serializers.Field):
+    def get_attribute(self, instance):
+        return instance
+
+    def to_representation(self, instance):
+        return self.parent._serialize_ods_state(instance)
+
+    def to_internal_value(self, data):
+        if data is None:
+            return None
+
+        if isinstance(data, dict):
+            return self.parent._normalize_legacy_ods_payload(data)
+
+        if not isinstance(data, list):
+            raise serializers.ValidationError(
+                "A sustentabilidade ODS deve ser informada como uma lista de itens."
+            )
+
+        normalized = []
+        for item in data:
+            if not isinstance(item, dict):
+                raise serializers.ValidationError(
+                    "Cada item de sustentabilidade ODS deve ser um objeto."
+                )
+
+            indicador_id = item.get("id")
+            try:
+                indicador_id = int(indicador_id)
+            except (TypeError, ValueError):
+                raise serializers.ValidationError(
+                    "Cada item de sustentabilidade ODS precisa de um id numérico."
+                )
+
+            if not IndicadorODS.objects.filter(pk=indicador_id).exists():
+                raise serializers.ValidationError(
+                    f"Indicador ODS com ID {indicador_id} não existe."
+                )
+
+            normalized.append({
+                "id": indicador_id,
+                "ativo": bool(item.get("ativo", False)),
+                "valor": item.get("valor", None),
+            })
+
+        return normalized
 
 
-ODS_TRADE_MAP = {
-    'acessibilidade_pcd': {
-        'ods': None,
-        'keywords': ('pcd', 'acessibilidade'),
-    },
-    'mulheres_lideranca': {
-        'ods': 5,
-        'keywords': ('mulher', 'lider'),
-    },
-    'gestao_residuos': {
-        'ods': 12,
-        'keywords': ('residu', 'resíduo', 'residuo'),
-    },
-    'fontes_renovaveis': {
-        'ods': 7,
-        'keywords': ('renov', 'energia'),
-    },
-}
+class ODSStateMixin:
+    sustentabilidade = ODSStateField(required=False)
+
+    def _ods_queryset(self):
+        return IndicadorODS.objects.all().order_by('eixo', 'ods', 'id')
+
+    def _legacy_ods_indicator(self, key):
+        cfg = {
+            'acessibilidade_pcd': {
+                'ods': None,
+                'keywords': ('pcd', 'acessibilidade'),
+            },
+            'mulheres_lideranca': {
+                'ods': 5,
+                'keywords': ('mulher', 'lider'),
+            },
+            'gestao_residuos': {
+                'ods': 12,
+                'keywords': ('residu', 'resíduo', 'residuo'),
+            },
+            'fontes_renovaveis': {
+                'ods': 7,
+                'keywords': ('renov', 'energia'),
+            },
+        }.get(key)
+        if not cfg:
+            return None
+
+        qs = IndicadorODS.objects.all().order_by('id')
+        if cfg['ods'] is not None:
+            qs = qs.filter(ods=cfg['ods'])
+
+        for keyword in cfg['keywords']:
+            match = qs.filter(descricao__icontains=keyword).first()
+            if match:
+                return match
+        return qs.first()
+
+    def _normalize_legacy_ods_payload(self, data):
+        normalized = []
+        for key, value in data.items():
+            indicator = self._legacy_ods_indicator(key)
+            if not indicator:
+                continue
+
+            normalized.append({
+                "id": indicator.id,
+                "ativo": bool(value),
+                "valor": 100 if bool(value) and indicator.natureza == IndicadorODS.Natureza.QUANTITATIVO else None,
+            })
+        return normalized
+
+    def _serialize_ods_state(self, instance):
+        existing = {
+            registro.indicador_id: registro
+            for registro in instance.indicadores_ods.select_related('indicador').all()
+        }
+        payload = []
+        for indicator in self._ods_queryset():
+            registro = existing.get(indicator.id)
+            payload.append({
+                "id": indicator.id,
+                "eixo": indicator.eixo,
+                "ods": indicator.ods,
+                "descricao": indicator.descricao,
+                "natureza": indicator.natureza,
+                "ativo": registro is not None,
+                "valor": registro.valor if registro else None,
+            })
+        return payload
+
+    def _sync_ods_state(self, instance, sustentabilidade_data):
+        if sustentabilidade_data is None:
+            return
+
+        existing = {
+            registro.indicador_id: registro
+            for registro in instance.indicadores_ods.select_related('indicador').all()
+        }
+        entries = {item["id"]: item for item in sustentabilidade_data}
+        for indicator in self._ods_queryset():
+            entry = entries.get(indicator.id)
+            registro = existing.get(indicator.id)
+
+            if not entry or not entry.get("ativo"):
+                if registro:
+                    registro.delete()
+                continue
+
+            valor = entry.get("valor")
+            if indicator.natureza == IndicadorODS.Natureza.QUANTITATIVO:
+                if valor in (None, ""):
+                    valor = registro.valor if registro and registro.valor is not None else 100
+            else:
+                valor = None
+
+            RegistroODS.objects.update_or_create(
+                registro=instance,
+                indicador=indicator,
+                defaults={"valor": valor},
+            )
 
 
-class TradePortalMeuEstabelecimentoSerializer(serializers.Serializer):
+class TradePortalMeuEstabelecimentoSerializer(ODSStateMixin, serializers.Serializer):
     id = serializers.IntegerField(read_only=True)
     tipo = serializers.CharField(read_only=True)
     tipo_label = serializers.CharField(read_only=True)
@@ -458,52 +582,6 @@ class TradePortalMeuEstabelecimentoSerializer(serializers.Serializer):
     contatos = TradePortalContatoSerializer(many=True, required=False)
     infraestrutura = TradePortalInfraestruturaSerializer(required=False)
     mao_de_obra = TradePortalMaoDeObraSerializer(required=False)
-    sustentabilidade = TradePortalSustentabilidadeSerializer(required=False)
-
-    def _find_ods_indicator(self, key):
-        cfg = ODS_TRADE_MAP[key]
-        qs = IndicadorODS.objects.all().order_by('id')
-        if cfg['ods'] is not None:
-            qs = qs.filter(ods=cfg['ods'])
-
-        for keyword in cfg['keywords']:
-            match = qs.filter(descricao__icontains=keyword).first()
-            if match:
-                return match
-        return qs.first()
-
-    def _get_ods_state(self, instance):
-        state = {}
-        for key in ODS_TRADE_MAP:
-            indicator = self._find_ods_indicator(key)
-            if not indicator:
-                state[key] = False
-                continue
-            state[key] = instance.indicadores_ods.filter(indicador=indicator).exists()
-        return state
-
-    def _set_ods_flag(self, instance, key, enabled):
-        indicator = self._find_ods_indicator(key)
-        if not indicator:
-            return
-
-        rel = instance.indicadores_ods.filter(indicador=indicator).first()
-        if not enabled:
-            if rel:
-                rel.delete()
-            return
-
-        defaults = {}
-        if indicator.natureza == IndicadorODS.Natureza.QUANTITATIVO:
-            defaults['valor'] = rel.valor if rel and rel.valor is not None else 100
-        else:
-            defaults['valor'] = None
-
-        RegistroODS.objects.update_or_create(
-            registro=instance,
-            indicador=indicator,
-            defaults=defaults,
-        )
 
     def _trade_instance(self, instance):
         return instance.especializacao() if hasattr(instance, 'especializacao') else instance
@@ -579,7 +657,7 @@ class TradePortalMeuEstabelecimentoSerializer(serializers.Serializer):
                 'qtde_funcionarios_fixos': getattr(instance, 'qtde_funcionarios_fixos', None),
                 'qtde_funcionarios_temporarios': getattr(instance, 'qtde_funcionarios_temporarios', None),
             },
-            'sustentabilidade': self._get_ods_state(instance),
+            'sustentabilidade': self._serialize_ods_state(instance),
         }
         return data
 
@@ -684,8 +762,7 @@ class TradePortalMeuEstabelecimentoSerializer(serializers.Serializer):
             instance.save(update_fields=['qtde_funcionarios_fixos', 'qtde_funcionarios_temporarios'])
 
         if sustentabilidade_data is not None:
-            for key, value in sustentabilidade_data.items():
-                self._set_ods_flag(instance, key, bool(value))
+            self._sync_ods_state(instance, sustentabilidade_data)
 
         return instance
 
@@ -712,7 +789,7 @@ class RedeSocialSerializer(serializers.ModelSerializer):
 # 2. SERIALIZER PAI (Classe Base)
 # ==========================================
 
-class RegistroBaseSerializer(serializers.ModelSerializer):
+class RegistroBaseSerializer(ODSStateMixin, serializers.ModelSerializer):
     """
     Serializer base que lida automaticamente com Endereço e Contatos
     para qualquer filha de RegistroInventario.
@@ -720,6 +797,7 @@ class RegistroBaseSerializer(serializers.ModelSerializer):
     endereco = EnderecoSerializer(required=False, allow_null=True)
     contatos = ContatoSerializer(many=True, required=False)
     redes_sociais = RedeSocialSerializer(many=True, required=False) 
+    sustentabilidade = ODSStateField(required=False)
 
 
     def create(self, validated_data):
@@ -727,6 +805,7 @@ class RegistroBaseSerializer(serializers.ModelSerializer):
         contatos_data = validated_data.pop('contatos', [])
         redes_data = validated_data.pop('redes_sociais', []) 
         formas_pagamento_data = validated_data.pop('formas_pagamento', None)
+        sustentabilidade_data = validated_data.pop('sustentabilidade', None)
 
         instancia = super().create(validated_data)
 
@@ -742,6 +821,8 @@ class RegistroBaseSerializer(serializers.ModelSerializer):
         if formas_pagamento_data is not None:
             instancia.formas_pagamento.set(formas_pagamento_data)
 
+        self._sync_ods_state(instancia, sustentabilidade_data)
+
         return instancia
 
     def update(self, instance, validated_data):
@@ -749,6 +830,7 @@ class RegistroBaseSerializer(serializers.ModelSerializer):
         contatos_data = validated_data.pop('contatos', None)
         redes_data = validated_data.pop('redes_sociais', None)
         formas_pagamento_data = validated_data.pop('formas_pagamento', None)
+        sustentabilidade_data = validated_data.pop('sustentabilidade', None)
 
         instancia = super().update(instance, validated_data)
 
@@ -772,6 +854,8 @@ class RegistroBaseSerializer(serializers.ModelSerializer):
                 
         if formas_pagamento_data is not None:
             instancia.formas_pagamento.set(formas_pagamento_data)
+
+        self._sync_ods_state(instancia, sustentabilidade_data)
 
         return instancia
 

@@ -63,6 +63,19 @@ interface TradePortalContact {
   cargo?: string;
 }
 
+interface OdsCatalogItem {
+  id: number;
+  eixo: number;
+  ods: number;
+  descricao: string;
+  natureza: "quali" | "quant";
+}
+
+interface OdsIndicatorState extends OdsCatalogItem {
+  ativo: boolean;
+  valor: number | null;
+}
+
 interface TradePortalMyEstablishment {
   id: number;
   tipo: string;
@@ -88,12 +101,7 @@ interface TradePortalMyEstablishment {
     qtde_funcionarios_fixos: number | null;
     qtde_funcionarios_temporarios: number | null;
   };
-  sustentabilidade: {
-    acessibilidade_pcd: boolean;
-    mulheres_lideranca: boolean;
-    gestao_residuos: boolean;
-    fontes_renovaveis: boolean;
-  };
+  sustentabilidade: OdsIndicatorState[];
 }
 
 interface HistoricoImportacao {
@@ -125,6 +133,17 @@ class ApiService {
   async listInventory(endpoint: string): Promise<any[]> {
     const response = await this.api.get(`/inventario/${endpoint}/`);
     const data = response.data;
+    return Array.isArray(data) ? data : (data?.results ?? []);
+  }
+
+  async getInventoryItem(endpoint: string, id: number): Promise<any> {
+    const response = await this.api.get(`/inventario/${endpoint}/${id}/`);
+    return response.data;
+  }
+
+  async getOdsCatalog(): Promise<OdsCatalogItem[]> {
+    const response = await this.api.get('/inventario/ods/');
+    const data = response.data as any;
     return Array.isArray(data) ? data : (data?.results ?? []);
   }
 
@@ -424,7 +443,7 @@ async login(email: string, password: string): Promise<LoginResponse> {
     return response.data;
   }
 
-  async updateMyTradeEstablishment(payload: Partial<TradePortalMyEstablishment>): Promise<TradePortalMyEstablishment> {
+  async updateMyTradeEstablishment(payload: any): Promise<TradePortalMyEstablishment> {
     try {
       const response = await this.api.patch<TradePortalMyEstablishment>('/inventario/meu-estabelecimento/', payload);
       toast.success('Dados do estabelecimento atualizados com sucesso');

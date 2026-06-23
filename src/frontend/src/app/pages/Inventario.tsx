@@ -15,6 +15,21 @@ type Segmento =
   | "Agência de Viagem"
   | "Transporte Turístico";
 
+type OdsNatureza = "quali" | "quant";
+
+type OdsCatalogItem = {
+  id: number;
+  eixo: number;
+  ods: number;
+  descricao: string;
+  natureza: OdsNatureza;
+};
+
+type OdsFormItem = OdsCatalogItem & {
+  ativo: boolean;
+  valor: string;
+};
+
 interface Estabelecimento {
   id: number;
   endpoint: string;
@@ -86,20 +101,31 @@ interface FormData {
   rampaAcesso: boolean;
   sinalizacaoBraile: boolean;
   cadeiraRodas: boolean;
-  fontesRenovaveis: boolean;
-  planoResiduos: boolean;
-  captacaoChuva: boolean;
   produtosLocais: boolean;
+  sustentabilidade: OdsFormItem[];
 }
 
-const emptyForm: FormData = {
+const buildOdsItems = (catalog: OdsCatalogItem[], current: OdsFormItem[] = []): OdsFormItem[] => {
+  const currentById = new Map(current.map((item) => [item.id, item]));
+  return catalog.map((indicator) => {
+    const existing = currentById.get(indicator.id);
+    return {
+      ...indicator,
+      ativo: existing?.ativo ?? false,
+      valor: existing?.valor ?? "",
+    };
+  });
+};
+
+const createEmptyForm = (catalog: OdsCatalogItem[] = []): FormData => ({
   razaoSocial: "", nomeFantasia: "", cnpj: "", endereco: "", cidade: "Olímpia",
   cep: "", telefone: "", email: "", segmento: "", categoria: "", status: "Ativo",
   uhs: "", leitos: "", capacidade: "",
   areaVerde: false, piscina: false, salasEventos: false, estacionamento: false, wifiCortesia: false,
   banheirosPCD: false, rampaAcesso: false, sinalizacaoBraile: false, cadeiraRodas: false,
-  fontesRenovaveis: false, planoResiduos: false, captacaoChuva: false, produtosLocais: false,
-};
+  produtosLocais: false,
+  sustentabilidade: buildOdsItems(catalog),
+});
 
 type TabKey = "cadastrais" | "infra" | "acessibilidade";
 
@@ -118,10 +144,11 @@ export function Inventario() {
   const [showModal, setShowModal] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [editingEndpoint, setEditingEndpoint] = useState<string | null>(null);
-  const [formData, setFormData] = useState<FormData>(emptyForm);
+  const [formData, setFormData] = useState<FormData>(createEmptyForm());
   const [activeTab, setActiveTab] = useState<TabKey>("cadastrais");
   const [deleteConfirm, setDeleteConfirm] = useState<Estabelecimento | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [odsCatalog, setOdsCatalog] = useState<OdsCatalogItem[]>([]);
 
   useEffect(() => {
     const fetchInventario = async () => {
@@ -160,6 +187,21 @@ export function Inventario() {
     fetchInventario();
   }, []);
 
+  useEffect(() => {
+    const fetchOdsCatalog = async () => {
+      try {
+        const catalog = await apiService.getOdsCatalog();
+        setOdsCatalog(catalog);
+      } catch (error) {
+        console.error("Erro ao carregar catálogo ODS:", error);
+        toast.error("Falha ao carregar o catálogo ODS.");
+        setOdsCatalog([]);
+      }
+    };
+
+    fetchOdsCatalog();
+  }, []);
+
   const filtered = dados.filter((d) => {
     const matchSearch =
       d.razaoSocial.toLowerCase().includes(search.toLowerCase()) ||
@@ -173,28 +215,50 @@ export function Inventario() {
   const openNewModal = () => {
     setEditId(null);
     setEditingEndpoint(null);
-    setFormData(emptyForm);
+    setFormData(createEmptyForm(odsCatalog));
     setActiveTab("cadastrais");
     setShowModal(true);
   };
 
-  const openEditModal = (est: Estabelecimento) => {
+  const openEditModal = async (est: Estabelecimento) => {
     setEditId(est.id);
     setEditingEndpoint(est.endpoint);
-    setFormData({
-      ...emptyForm,
-      razaoSocial: est.razaoSocial,
-      nomeFantasia: est.nomeFantasia,
-      cnpj: est.cnpj,
-      segmento: est.segmento,
-      status: est.status,
-    });
-    setActiveTab("cadastrais");
-    setShowModal(true);
+    try {
+      const detail = await apiService.getInventoryItem(est.endpoint, est.id);
+      const sustainability = Array.isArray(detail.sustentabilidade)
+        ? detail.sustentabilidade.map((item: any) => ({
+          id: Number(item.id),
+          eixo: Number(item.eixo),
+          ods: Number(item.ods),
+          descricao: item.descricao || "",
+          natureza: item.natureza as OdsNatureza,
+          ativo: Boolean(item.ativo),
+          valor: item.valor == null ? "" : String(item.valor),
+        }))
+        : [];
+      const sustainabilityItems = odsCatalog.length > 0
+        ? buildOdsItems(odsCatalog, sustainability)
+        : sustainability;
+
+      setFormData({
+        ...createEmptyForm(odsCatalog),
+        razaoSocial: detail.razao_social || est.razaoSocial,
+        nomeFantasia: detail.nome_fantasia || est.nomeFantasia,
+        cnpj: detail.cnpj || est.cnpj,
+        segmento: est.segmento,
+        status: detail.ativo ? "Ativo" : "Inativo",
+        sustentabilidade: sustainabilityItems,
+      });
+      setActiveTab("cadastrais");
+      setShowModal(true);
+    } catch (error) {
+      console.error("Erro ao carregar entidade para edição:", error);
+      toast.error("Não foi possível carregar os dados da entidade.");
+    }
   };
 
   const buildPayload = (data: FormData) => {
-    const payload: Record<string, string | number | boolean | null> = {
+    const payload: Record<string, any> = {
       razao_social: data.razaoSocial,
       nome_fantasia: data.nomeFantasia || data.razaoSocial,
       cnpj: data.cnpj.replace(/\D/g, "") || null,
@@ -236,6 +300,12 @@ export function Inventario() {
       payload.acessibilidade = data.banheirosPCD || data.rampaAcesso;
     }
 
+    payload.sustentabilidade = data.sustentabilidade.map((item) => ({
+      id: item.id,
+      ativo: item.ativo,
+      valor: item.natureza === "quant" ? toNumberOrNull(item.valor) : null,
+    }));
+
     return payload;
   };
 
@@ -270,7 +340,7 @@ export function Inventario() {
         setDados((prev) => [...prev, formatted]);
       }
       setShowModal(false);
-      setFormData(emptyForm);
+      setFormData(createEmptyForm(odsCatalog));
       setEditId(null);
       setEditingEndpoint(null);
     } catch (error) {
@@ -801,19 +871,60 @@ export function Inventario() {
                       <span className="w-2 h-2 rounded-full bg-emerald-500" />
                       Sustentabilidade
                     </h4>
-                    <div className="grid grid-cols-2 gap-2">
-                      {[
-                        { key: "fontesRenovaveis", label: "Uso de Fontes Renováveis" },
-                        { key: "planoResiduos", label: "Plano de Gestão de Resíduos" },
-                        { key: "captacaoChuva", label: "Captação de Água da Chuva" },
-                        { key: "produtosLocais", label: "Compra de Produtos Locais" },
-                      ].map((item) => (
-                        <CheckboxItem
-                          key={item.key}
-                          label={item.label}
-                          checked={formData[item.key as keyof FormData] as boolean}
-                          onChange={(v) => setFormData({ ...formData, [item.key]: v })}
-                        />
+                    <div className="mb-4">
+                      <CheckboxItem
+                        label="Compra de Produtos Locais"
+                        checked={formData.produtosLocais}
+                        onChange={(v) => setFormData({ ...formData, produtosLocais: v })}
+                      />
+                    </div>
+                    <div className="grid gap-3">
+                      {formData.sustentabilidade.length === 0 && (
+                        <div className="rounded-lg border border-dashed border-[#cbd5e1] p-4 text-sm text-[#64748b]">
+                          Nenhum indicador ODS cadastrado no banco.
+                        </div>
+                      )}
+                      {formData.sustentabilidade.map((item, index) => (
+                        <div key={item.id} className="rounded-lg border border-[#e2e8f0] p-4 space-y-3 bg-white">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-semibold text-[#0c2340]">
+                                ODS {item.ods} — {item.descricao}
+                              </p>
+                              <p className="text-xs text-[#94a3b8]">
+                                Eixo {item.eixo} · {item.natureza === "quant" ? "Quantitativo" : "Qualitativo"}
+                              </p>
+                            </div>
+                            <input
+                              type="checkbox"
+                              checked={item.ativo}
+                              onChange={(e) => setFormData((prev) => ({
+                                ...prev,
+                                sustentabilidade: prev.sustentabilidade.map((curr, idx) => (
+                                  idx === index ? { ...curr, ativo: e.target.checked } : curr
+                                )),
+                              }))}
+                            />
+                          </div>
+                          {item.natureza === "quant" && (
+                            <div className="max-w-xs">
+                              <label className="block text-xs font-medium text-[#64748b] mb-1">Valor</label>
+                              <input
+                                type="number"
+                                value={item.valor}
+                                disabled={!item.ativo}
+                                onChange={(e) => setFormData((prev) => ({
+                                  ...prev,
+                                  sustentabilidade: prev.sustentabilidade.map((curr, idx) => (
+                                    idx === index ? { ...curr, valor: e.target.value } : curr
+                                  )),
+                                }))}
+                                className="w-full px-3 py-2 text-sm border border-[#e2e8f0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1a6fbf]/30 focus:border-[#1a6fbf] bg-white"
+                                placeholder="0"
+                              />
+                            </div>
+                          )}
+                        </div>
                       ))}
                     </div>
                   </div>

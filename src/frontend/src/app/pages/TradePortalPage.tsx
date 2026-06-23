@@ -5,7 +5,6 @@ import { apiService } from "../services/api";
 import { useAuth } from "../contexts/AuthContext";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
-import { Checkbox } from "../components/ui/checkbox";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Switch } from "../components/ui/switch";
@@ -16,6 +15,16 @@ type ContactForm = {
   telefone: string;
   email: string;
   cargo: string;
+};
+
+type OdsFormItem = {
+  id: number;
+  eixo: number;
+  ods: number;
+  descricao: string;
+  natureza: "quali" | "quant";
+  ativo: boolean;
+  valor: string;
 };
 
 type TradeEstablishment = {
@@ -52,11 +61,14 @@ type TradeEstablishment = {
     qtde_funcionarios_temporarios: number | null;
   };
   sustentabilidade: {
-    acessibilidade_pcd: boolean;
-    mulheres_lideranca: boolean;
-    gestao_residuos: boolean;
-    fontes_renovaveis: boolean;
-  };
+    id: number;
+    eixo: number;
+    ods: number;
+    descricao: string;
+    natureza: "quali" | "quant";
+    ativo: boolean;
+    valor: number | null;
+  }[];
 };
 
 type TradePortalForm = {
@@ -86,12 +98,7 @@ type TradePortalForm = {
     qtde_funcionarios_fixos: string;
     qtde_funcionarios_temporarios: string;
   };
-  sustentabilidade: {
-    acessibilidade_pcd: boolean;
-    mulheres_lideranca: boolean;
-    gestao_residuos: boolean;
-    fontes_renovaveis: boolean;
-  };
+  sustentabilidade: OdsFormItem[];
 };
 
 const emptyContact = (): ContactForm => ({ telefone: "", email: "", cargo: "" });
@@ -123,12 +130,7 @@ const emptyForm = (): TradePortalForm => ({
     qtde_funcionarios_fixos: "",
     qtde_funcionarios_temporarios: "",
   },
-  sustentabilidade: {
-    acessibilidade_pcd: false,
-    mulheres_lideranca: false,
-    gestao_residuos: false,
-    fontes_renovaveis: false,
-  },
+  sustentabilidade: [],
 });
 
 function toDigits(value: string) {
@@ -142,6 +144,18 @@ function toNumberOrNull(value: string) {
 
 function normalizeDate(value: string | null | undefined) {
   return value ? value.slice(0, 10) : "";
+}
+
+function mapSustentabilidade(items: TradeEstablishment["sustentabilidade"]): OdsFormItem[] {
+  return items.map((item) => ({
+    id: item.id,
+    eixo: item.eixo,
+    ods: item.ods,
+    descricao: item.descricao,
+    natureza: item.natureza,
+    ativo: item.ativo,
+    valor: item.valor?.toString() || "",
+  }));
 }
 
 function mapToForm(data: TradeEstablishment): TradePortalForm {
@@ -172,7 +186,7 @@ function mapToForm(data: TradeEstablishment): TradePortalForm {
       qtde_funcionarios_fixos: data.mao_de_obra?.qtde_funcionarios_fixos?.toString() || "",
       qtde_funcionarios_temporarios: data.mao_de_obra?.qtde_funcionarios_temporarios?.toString() || "",
     },
-    sustentabilidade: { ...data.sustentabilidade },
+    sustentabilidade: mapSustentabilidade(data.sustentabilidade || []),
   };
 }
 
@@ -237,6 +251,19 @@ export function TradePortalPage() {
     }));
   };
 
+  const updateOdsItem = (index: number, field: keyof OdsFormItem, value: string | boolean) => {
+    setForm((prev) => ({
+      ...prev,
+      sustentabilidade: prev.sustentabilidade.map((item, idx) => {
+        if (idx !== index) return item;
+        if (field === "ativo") {
+          return { ...item, ativo: Boolean(value) };
+        }
+        return { ...item, [field]: value as string };
+      }),
+    }));
+  };
+
   const handleSubmit = async () => {
     if (!entity) return;
     if (!canEdit) {
@@ -281,7 +308,11 @@ export function TradePortalPage() {
         qtde_funcionarios_fixos: toNumberOrNull(form.mao_de_obra.qtde_funcionarios_fixos),
         qtde_funcionarios_temporarios: toNumberOrNull(form.mao_de_obra.qtde_funcionarios_temporarios),
       },
-      sustentabilidade: form.sustentabilidade,
+      sustentabilidade: form.sustentabilidade.map((item) => ({
+        id: item.id,
+        ativo: item.ativo,
+        valor: item.natureza === "quant" ? toNumberOrNull(item.valor) : null,
+      })),
     };
 
     try {
@@ -502,38 +533,48 @@ export function TradePortalPage() {
           <Card className="border-[#dbe4ee]">
             <CardHeader>
               <CardTitle className="text-[#0c2340]">Sustentabilidade (ODS)</CardTitle>
-              <CardDescription>Marque os indicadores que a entidade possui.</CardDescription>
+              <CardDescription>Os indicadores são carregados dinamicamente do catálogo ODS.</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="grid gap-4 md:grid-cols-2">
-                <ToggleOption
-                  label="Acessibilidade PCD"
-                  description="Registro booleano para acessibilidade."
-                  checked={form.sustentabilidade.acessibilidade_pcd}
-                  disabled={!canEdit}
-                  onCheckedChange={(checked) => setForm((prev) => ({ ...prev, sustentabilidade: { ...prev.sustentabilidade, acessibilidade_pcd: checked } }))}
-                />
-                <ToggleOption
-                  label="Mulheres na liderança (ODS 5)"
-                  description="Indicador relacionado à presença feminina."
-                  checked={form.sustentabilidade.mulheres_lideranca}
-                  disabled={!canEdit}
-                  onCheckedChange={(checked) => setForm((prev) => ({ ...prev, sustentabilidade: { ...prev.sustentabilidade, mulheres_lideranca: checked } }))}
-                />
-                <ToggleOption
-                  label="Gestão de resíduos (ODS 12)"
-                  description="Boas práticas ambientais."
-                  checked={form.sustentabilidade.gestao_residuos}
-                  disabled={!canEdit}
-                  onCheckedChange={(checked) => setForm((prev) => ({ ...prev, sustentabilidade: { ...prev.sustentabilidade, gestao_residuos: checked } }))}
-                />
-                <ToggleOption
-                  label="Fontes renováveis (ODS 7)"
-                  description="Uso de energia limpa ou renovável."
-                  checked={form.sustentabilidade.fontes_renovaveis}
-                  disabled={!canEdit}
-                  onCheckedChange={(checked) => setForm((prev) => ({ ...prev, sustentabilidade: { ...prev.sustentabilidade, fontes_renovaveis: checked } }))}
-                />
+                {form.sustentabilidade.length === 0 && (
+                  <div className="col-span-2 rounded-lg border border-dashed border-[#cbd5e1] p-6 text-sm text-[#64748b]">
+                    Nenhum indicador ODS cadastrado no banco.
+                  </div>
+                )}
+
+                {form.sustentabilidade.map((item, index) => (
+                  <div key={item.id} className="rounded-lg border border-[#e2e8f0] p-4 space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-[#0c2340]">
+                          ODS {item.ods} — {item.descricao}
+                        </p>
+                        <p className="text-xs text-[#94a3b8]">
+                          Eixo {item.eixo} · {item.natureza === "quant" ? "Quantitativo" : "Qualitativo"}
+                        </p>
+                      </div>
+                      <Switch
+                        checked={item.ativo}
+                        disabled={!canEdit}
+                        onCheckedChange={(checked) => updateOdsItem(index, "ativo", checked)}
+                      />
+                    </div>
+
+                    {item.natureza === "quant" && (
+                      <div>
+                        <Label className="text-xs text-[#64748b]">Valor</Label>
+                        <Input
+                          type="number"
+                          value={item.valor}
+                          disabled={!canEdit || !item.ativo}
+                          onChange={(e) => updateOdsItem(index, "valor", e.target.value)}
+                          placeholder="0"
+                        />
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
             </CardContent>
           </Card>
