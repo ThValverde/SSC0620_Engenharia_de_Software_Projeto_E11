@@ -26,6 +26,7 @@ export function LoginPage() {
 
     try {
       await login(email, password);
+      window.location.href = '/';
       navigate(from, { replace: true });
     } catch (err: any) {
       const errorMessage =

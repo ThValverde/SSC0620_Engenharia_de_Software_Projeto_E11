@@ -62,9 +62,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     initAuth();
   }, []);
 
-  const login = async (email: string, password: string) => {
-    const response = await apiService.login(email, password);
-    setUser(response.user);
+const login = async (email: string, password: string): Promise<void> => {
+    // 1. Chama a API e salva no localStorage
+    await apiService.login(email, password);
+    
+    // 2. A MÁGICA: Atualiza o estado do React imediatamente
+    const loggedUser = apiService.getCurrentUser();
+    setUser(loggedUser);
+    // Removemos o setIsAuthenticated pois o Contexto calcula isso dinamicamente usando o 'user'
   };
 
   const logout = () => {
