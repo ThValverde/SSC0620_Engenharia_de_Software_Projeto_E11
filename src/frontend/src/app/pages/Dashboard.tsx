@@ -4,7 +4,7 @@ import { apiService } from "../services/api";
 import {
   Building2, BedDouble, Shield, Users, TrendingUp,
   Calendar, ChevronDown, CheckCircle2, AlertTriangle,
-  Home, Layers, Leaf, Accessibility, Zap, Recycle,
+  Home, Layers, Leaf,
   Briefcase, Database, Clock, Hotel, KeyRound,
 } from "lucide-react";
 import {
@@ -21,19 +21,22 @@ const DADOS_ATUAIS = {
   infra: {
     meiosHospedagem: 0, totalLeitos: 0, totalUHs: 0,
     imoveisTemporada: 0, meiosIrregulares: 0, uhsIrregulares: 0,
-    totalGeralUHs: 0, totalGeralLeitos: 0, estimativaLeiosConstrucao: 0,
+    totalGeralUHs: 0, totalGeralLeitos: 0, estimativaLeitosConstrucao: null,
   },
-  ods: [
-    { titulo: "Eixo Acessibilidade", subtitulo: "ODS 10 & 11", cor: "#1a6fbf", percent: 0,
-      data: [{ name: "Com PCD", value: 0, color: "#1a6fbf" }, { name: "Sem PCD", value: 0, color: "#e2e8f0" }] },
-    { titulo: "Eixo Sustentabilidade", subtitulo: "ODS 12 & 13", cor: "#16a34a", percent: 0,
-      data: [{ name: "Com Selo", value: 0, color: "#16a34a" }, { name: "Sem Selo", value: 0, color: "#e2e8f0" }] },
-    { titulo: "Eixo Energia Limpa", subtitulo: "ODS 7", cor: "#f59e0b", percent: 0,
-      data: [{ name: "Renováveis", value: 0, color: "#f59e0b" }, { name: "Convencional", value: 0, color: "#e2e8f0" }] },
-    { titulo: "Eixo Resíduos", subtitulo: "ODS 12", cor: "#8b5cf6", percent: 0,
-      data: [{ name: "Com Plano", value: 0, color: "#8b5cf6" }, { name: "Sem Plano", value: 0, color: "#e2e8f0" }] },
-  ],
+  ods: [],
 };
+
+type OdsCard = {
+  titulo: string;
+  subtitulo: string;
+  cor: string;
+  percent: number;
+  data: Array<{ name: string; value: number; color: string }>;
+};
+
+function formatMetric(value: number | null | undefined) {
+  return value == null ? "—" : value.toLocaleString("pt-BR");
+}
 
 // ─── Componente de Donut pequeno para CADASTUR ─────────────────────────────────
 
@@ -76,7 +79,7 @@ function MiniDonut({ percent, color }: { percent: number; color: string }) {
 
 function OdsDonut({
   titulo, subtitulo, cor, data, percent,
-}: (typeof ODS_DATA)[number]) {
+}: OdsCard) {
   return (
     <div className="flex-1 bg-white rounded-xl border border-[#e2e8f0] p-5 shadow-sm flex flex-col items-center text-center min-w-0">
       <p className="text-xs font-semibold text-[#0c2340] leading-tight mb-0.5">{titulo}</p>
@@ -416,7 +419,7 @@ export function Dashboard() {
           {[
             { label: "Total Geral de UHs", value: snap.infra.totalGeralUHs.toLocaleString("pt-BR"), icon: KeyRound, color: "text-[#1a6fbf]", desc: "incluindo temporada" },
             { label: "Total Geral de Leitos", value: snap.infra.totalGeralLeitos.toLocaleString("pt-BR"), icon: BedDouble, color: "text-emerald-600", desc: "capacidade total instalada" },
-            { label: "Estimativa Leitos em Construção", value: snap.infra.estimativaLeiosConstrucao.toLocaleString("pt-BR"), icon: TrendingUp, color: "text-violet-600", desc: "sem indicador cadastrado" },
+            { label: "Estimativa Leitos em Construção", value: formatMetric(snap.infra.estimativaLeitosConstrucao), icon: TrendingUp, color: "text-violet-600", desc: "sem fonte cadastral no banco" },
           ].map((item) => {
             const Icon = item.icon;
             return (
@@ -438,32 +441,21 @@ export function Dashboard() {
         <div className="flex items-center gap-2 mb-4">
           <Leaf size={18} className="text-emerald-600" />
           <h2 className="text-[#0c2340]">Desempenho Módulo ODS</h2>
-          <span className="ml-2 text-xs text-[#94a3b8] font-normal">Agenda 2030 — Sustentabilidade e Responsabilidade</span>
+          <span className="ml-2 text-xs text-[#94a3b8] font-normal">Agenda 2030 — indicadores cadastrados no banco</span>
         </div>
 
         <div className="flex gap-4">
           {snap.ods.map((ods) => (
-            <OdsDonut key={ods.titulo} {...ods} />
+            <OdsDonut key={`${ods.titulo}-${ods.subtitulo}`} {...ods} />
           ))}
         </div>
 
-        {/* Rodapé informativo */}
-        <div className="mt-4 bg-[#f8fafc] border border-[#e2e8f0] rounded-xl px-5 py-4 flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <Accessibility size={16} className="text-[#1a6fbf]" />
-            <span className="text-xs text-[#64748b]">ODS 10 & 11 — Redução das Desigualdades e Cidades Sustentáveis</span>
+        {snap.ods.length === 0 && (
+          <div className="mt-4 bg-[#f8fafc] border border-[#e2e8f0] rounded-xl px-5 py-4 flex items-center gap-2">
+            <Database size={16} className="text-[#1a6fbf]" />
+            <span className="text-xs text-[#64748b]">Nenhum indicador ODS cadastrado no banco.</span>
           </div>
-          <div className="w-px h-4 bg-[#e2e8f0]" />
-          <div className="flex items-center gap-2">
-            <Recycle size={16} className="text-emerald-600" />
-            <span className="text-xs text-[#64748b]">ODS 12 — Consumo e Produção Responsáveis</span>
-          </div>
-          <div className="w-px h-4 bg-[#e2e8f0]" />
-          <div className="flex items-center gap-2">
-            <Zap size={16} className="text-amber-500" />
-            <span className="text-xs text-[#64748b]">ODS 7 — Energia Limpa e Acessível</span>
-          </div>
-        </div>
+        )}
       </div>
 
     </div>

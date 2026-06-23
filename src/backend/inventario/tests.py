@@ -14,6 +14,8 @@ from datetime import date
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.test import TestCase
+from django.contrib.auth import get_user_model
+from rest_framework.test import APIRequestFactory, force_authenticate
 
 from .models import (
     AtrativoLazerEntretenimento,
@@ -33,6 +35,7 @@ from .models import (
     RegistroODS,
     ServicoApoio,
 )
+from .views import DashboardResumoView
 
 
 class DiscriminadorTipoTests(TestCase):
@@ -213,6 +216,43 @@ class ODSTests(TestCase):
     def test_quantitativo_com_valor_passa(self):
         r = RegistroODS(registro=self.hotel, indicador=self.quant, valor=42)
         r.full_clean()
+
+
+class DashboardResumoTests(TestCase):
+    def setUp(self):
+        self.factory = APIRequestFactory()
+        self.user = get_user_model().objects.create_user(
+            username="dashboard-user",
+            password="senha-segura",
+        )
+        self.hotel = MeioHospedagem.objects.create(nome_fantasia="Hotel A")
+        self.indicador_quant = IndicadorODS.objects.create(
+            eixo=1,
+            ods=5,
+            descricao="Mulheres em posição de liderança",
+            natureza=IndicadorODS.Natureza.QUANTITATIVO,
+        )
+        self.indicador_quali = IndicadorODS.objects.create(
+            eixo=1,
+            ods=5,
+            descricao="Igualdade de gênero",
+            natureza=IndicadorODS.Natureza.QUALITATIVO,
+        )
+        RegistroODS.objects.create(registro=self.hotel, indicador=self.indicador_quant, valor=42)
+
+    def test_resumo_usa_catalogo_real_de_ods(self):
+        request = self.factory.get("/api/inventario/dashboard/resumo/")
+        force_authenticate(request, user=self.user)
+
+        response = DashboardResumoView.as_view()(request)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["ods"]), 2)
+        self.assertIn("Mulheres em posição de liderança", response.data["ods"][0]["subtitulo"])
+        self.assertIn("Igualdade de gênero", response.data["ods"][1]["subtitulo"])
+        self.assertEqual(response.data["ods"][0]["percent"], 100)
+        self.assertEqual(response.data["ods"][1]["percent"], 0)
+        self.assertIsNone(response.data["infra"]["estimativaLeitosConstrucao"])
 
 
 class GrupoFolcloricoTests(TestCase):
