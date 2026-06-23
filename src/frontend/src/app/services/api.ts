@@ -1,8 +1,8 @@
 import axios, { AxiosError, AxiosInstance } from 'axios';
 import { toast } from 'sonner';
 
+// @ts-ignore
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
-
 interface Tokens {
   access: string;
   refresh: string;

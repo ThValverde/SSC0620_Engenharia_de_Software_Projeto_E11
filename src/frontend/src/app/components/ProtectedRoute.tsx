@@ -23,3 +23,27 @@ export function ProtectedRoute() {
   // Tranca ele na visão do empresário.
   return <Navigate to="/portal-trade" replace />;
 }
+
+export function SmartRedirectRoute() {
+  const { user, isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) {
+    return <div>Carregando...</div>;
+  }
+
+  if (!isAuthenticated || !user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  const isSecretaria = 
+    user.is_superuser || 
+    (user.groups && (user.groups.includes('Secretaria_Admin') || user.groups.includes('Secretaria_Staff')));
+
+  // Se for da secretaria, redireciona para a página principal deles
+  if (isSecretaria) {
+    return <Navigate to="/dashboard" replace />; 
+  }
+
+  // Se for do Trade, redireciona para o portal deles
+  return <Navigate to="/portal-trade" replace />;
+}
