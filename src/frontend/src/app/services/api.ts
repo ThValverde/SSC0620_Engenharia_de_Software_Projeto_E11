@@ -105,10 +105,10 @@ class ApiService {
   }
 
   // Auth endpoints
-  async login(email: string, password: string): Promise<LoginResponse> {
+async login(email: string, password: string): Promise<LoginResponse> {
     try {
       const response = await this.api.post<LoginResponse>('/auth/login/', {
-        email,
+        username: email,
         password,
       });
 
@@ -224,7 +224,7 @@ class ApiService {
     localStorage.setItem('refresh_token', token);
   }
 
-  private getUser(): User | null {
+  private getStoredUser(): User | null {
     const user = localStorage.getItem('user');
     return user ? JSON.parse(user) : null;
   }
@@ -244,7 +244,7 @@ class ApiService {
   }
 
   getCurrentUser(): User | null {
-    return this.getUser();
+    return this.getStoredUser();
   }
 }
 

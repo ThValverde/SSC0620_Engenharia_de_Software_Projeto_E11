@@ -122,6 +122,17 @@ class CadastroUsuarioHierarquicoSerializer(serializers.Serializer):
 
         return user
 
+class CustomUserDetailsSerializer(serializers.ModelSerializer):
+    groups = serializers.SlugRelatedField(
+        many=True,
+        read_only=True,
+        slug_field='name' 
+    )
+
+    class Meta:
+        model = User
+        fields = ('id', 'username', 'email', 'is_superuser', 'groups', 'first_name', 'last_name')
+
 # ==========================================
 # 1. SERIALIZERS DE SUPORTE (Aninhados)
 # ==========================================

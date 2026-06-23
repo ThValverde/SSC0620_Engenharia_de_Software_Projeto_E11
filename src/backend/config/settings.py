@@ -155,3 +155,10 @@ JWT_AUTH_REFRESH_COOKIE = 'jwt-refresh'
 JWT_AUTH_HTTPONLY = False
 
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+
+# =============================================================================
+# CONFIGURAÇÃO DO DJ-REST-AUTH (Serializers Customizados)
+# =============================================================================
+REST_AUTH = {
+    'USER_DETAILS_SERIALIZER': 'inventario.serializers.CustomUserDetailsSerializer',
+}
