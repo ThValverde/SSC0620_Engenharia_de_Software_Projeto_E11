@@ -32,6 +32,82 @@ interface InventoryEndpointPayload {
   [key: string]: string | number | boolean | null | undefined;
 }
 
+interface TradePortalSummary {
+  user: User;
+  estabelecimentos: Array<{
+    id: number;
+    endpoint: string;
+    tipo: string;
+    nome_fantasia: string;
+    razao_social: string;
+    cnpj: string;
+    ativo: boolean;
+    nivel_permissao: string;
+  }>;
+}
+
+interface TradePortalAddress {
+  cep?: string;
+  rua?: string;
+  numero?: string;
+  bairro?: string;
+  regiao?: string;
+  latitude?: string | number | null;
+  longitude?: string | number | null;
+}
+
+interface TradePortalContact {
+  id?: number;
+  telefone?: string;
+  email?: string;
+  cargo?: string;
+}
+
+interface TradePortalMyEstablishment {
+  id: number;
+  tipo: string;
+  tipo_label: string;
+  nivel_permissao: string;
+  nome_fantasia: string;
+  razao_social: string;
+  cnpj: string;
+  ativo: boolean;
+  cadastur: {
+    ativo: boolean;
+    numero: string;
+    vencimento: string | null;
+  };
+  endereco: TradePortalAddress;
+  contatos: TradePortalContact[];
+  infraestrutura: {
+    uh_total: number | null;
+    leitos: number | null;
+    capacidade_maxima: number | null;
+  };
+  mao_de_obra: {
+    qtde_funcionarios_fixos: number | null;
+    qtde_funcionarios_temporarios: number | null;
+  };
+  sustentabilidade: {
+    acessibilidade_pcd: boolean;
+    mulheres_lideranca: boolean;
+    gestao_residuos: boolean;
+    fontes_renovaveis: boolean;
+  };
+}
+
+interface HistoricoImportacao {
+  id: number;
+  arquivo: string;
+  nome: string;
+  fonte: string;
+  status: "processado" | "falhou" | string;
+  status_label?: string;
+  autor_nome: string;
+  importado_em: string;
+  download_url: string;
+}
+
 class ApiService {
   private api: AxiosInstance;
   private refreshTokenRequest: Promise<string> | null = null;
@@ -252,6 +328,130 @@ async login(email: string, password: string): Promise<LoginResponse> {
     const response = await this.api.get<User[]>('/users/');
     const data = response.data as any;
     return Array.isArray(data) ? data : (data?.results ?? []);
+  }
+
+  async listTradeUsers(): Promise<any[]> {
+    const response = await this.api.get('/inventario/trade-users/');
+    const data = response.data as any;
+    return Array.isArray(data) ? data : (data?.results ?? []);
+  }
+
+  async createTradeUser(userData: any): Promise<any> {
+    try {
+      const response = await this.api.post('/inventario/trade-users/', userData);
+      toast.success('Usuário trade criado com sucesso');
+      return response.data;
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        toast.error(error.response?.data?.detail || 'Erro ao criar usuário trade');
+      }
+      throw error;
+    }
+  }
+
+  async updateTradeUser(userId: number, userData: any): Promise<any> {
+    try {
+      const response = await this.api.patch(`/inventario/trade-users/${userId}/`, userData);
+      toast.success('Usuário trade atualizado com sucesso');
+      return response.data;
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        toast.error(error.response?.data?.detail || 'Erro ao atualizar usuário trade');
+      }
+      throw error;
+    }
+  }
+
+  async deleteTradeUser(userId: number): Promise<void> {
+    try {
+      await this.api.delete(`/inventario/trade-users/${userId}/`);
+      toast.success('Usuário trade removido com sucesso');
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        toast.error(error.response?.data?.detail || 'Erro ao remover usuário trade');
+      }
+      throw error;
+    }
+  }
+
+  async getTradePortalResumo(): Promise<TradePortalSummary> {
+    const response = await this.api.get<TradePortalSummary>('/inventario/trade/portal/');
+    return response.data;
+  }
+
+  async getHistoricoImportacoes(): Promise<HistoricoImportacao[]> {
+    const response = await this.api.get<HistoricoImportacao[]>('/historico/importacoes/');
+    const data = response.data as any;
+    return Array.isArray(data) ? data : (data?.results ?? []);
+  }
+
+  async uploadArquivoImportacao(file: File, fonte: string): Promise<HistoricoImportacao> {
+    try {
+      const formData = new FormData();
+      formData.append('arquivo', file);
+      formData.append('fonte', fonte);
+      formData.append('nome', file.name);
+
+      const response = await this.api.post<HistoricoImportacao>('/historico/importacoes/', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      toast.success('Arquivo importado com sucesso');
+      return response.data;
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        const message = error.response?.data?.detail || 'Erro ao importar arquivo';
+        toast.error(message);
+      }
+      throw error;
+    }
+  }
+
+  async deleteHistoricoImportacao(id: number): Promise<void> {
+    try {
+      await this.api.delete(`/historico/importacoes/${id}/`);
+      toast.success('Anexo removido com sucesso');
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        const message = error.response?.data?.detail || 'Erro ao remover anexo';
+        toast.error(message);
+      }
+      throw error;
+    }
+  }
+
+  async getMyTradeEstablishment(): Promise<TradePortalMyEstablishment> {
+    const response = await this.api.get<TradePortalMyEstablishment>('/inventario/meu-estabelecimento/');
+    return response.data;
+  }
+
+  async updateMyTradeEstablishment(payload: Partial<TradePortalMyEstablishment>): Promise<TradePortalMyEstablishment> {
+    try {
+      const response = await this.api.patch<TradePortalMyEstablishment>('/inventario/meu-estabelecimento/', payload);
+      toast.success('Dados do estabelecimento atualizados com sucesso');
+      return response.data;
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        const message = error.response?.data?.detail || 'Erro ao atualizar estabelecimento';
+        toast.error(message);
+      }
+      throw error;
+    }
+  }
+
+  async changePassword(oldPassword: string, newPassword1: string, newPassword2: string): Promise<void> {
+    try {
+      await this.api.post('/auth/password/change/', {
+        old_password: oldPassword,
+        new_password1: newPassword1,
+        new_password2: newPassword2,
+      });
+      toast.success('Senha alterada com sucesso');
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        toast.error(error.response?.data?.detail || 'Erro ao alterar senha');
+      }
+      throw error;
+    }
   }
 
   async deleteUser(userId: number): Promise<void> {

@@ -18,6 +18,8 @@ from django.contrib import admin
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from inventario.views import CadastrarUsuarioView, UserAdminViewSet
+from django.conf import settings
+from django.conf.urls.static import static
 
 users_router = DefaultRouter()
 users_router.register(r'users', UserAdminViewSet, basename='users')
@@ -39,4 +41,4 @@ urlpatterns = [
     path('api/auth/', include('dj_rest_auth.urls')),
     
     path('api/historico/', include('historico.urls')),
-]
+] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

@@ -6,7 +6,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from .models import Pasta, TagSegmento, Relatorio, ArquivoAnexo
 from .serializers import (
     PastaSerializer, TagSegmentoSerializer, 
-    RelatorioSerializer, ArquivoAnexoSerializer
+    RelatorioSerializer, ArquivoAnexoSerializer, HistoricoImportacaoSerializer
 )
 
 class BaseSecretariaViewSet(viewsets.ModelViewSet):
@@ -45,3 +45,19 @@ class ArquivoAnexoViewSet(BaseSecretariaViewSet):
     serializer_class = ArquivoAnexoSerializer
 
     parser_classes = [MultiPartParser, FormParser, JSONParser]
+
+
+class HistoricoImportacaoViewSet(BaseSecretariaViewSet):
+    queryset = Relatorio.objects.none()
+    serializer_class = HistoricoImportacaoSerializer
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ["nome", "fonte", "autor__email", "autor__username"]
+    ordering_fields = ["criado_em", "nome", "fonte", "status"]
+
+    def get_queryset(self):
+        from .models import HistoricoImportacao
+        return HistoricoImportacao.objects.select_related("autor").all()
+
+    def perform_create(self, serializer):
+        serializer.save(autor=self.request.user)

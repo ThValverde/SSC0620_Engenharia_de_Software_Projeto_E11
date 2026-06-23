@@ -14,24 +14,24 @@ import {
 // ─── Estado atual (presente) ──────────────────────────────────────────────────
 
 const DADOS_ATUAIS = {
-  banco: { totalEntidades: 312, ultimaAtualizacao: "19/06/2026 às 08:42" },
-  maoDeObra: { total: 11085, fixos: 8340, temporarios: 2745, trend: "+4,2% anual" },
-  cadastur: { totalEmpresas: 312, totalCadastur: 265, percentual: 85, trend: "+3% este ano" },
-  statusEntidades: { ativos: 298, inativos: 14 },
+  banco: { totalEntidades: 0, totalEmpresas: 0, ultimaAtualizacao: "—" },
+  maoDeObra: { total: 0, fixos: 0, temporarios: 0, trend: "Sem dados" },
+  cadastur: { totalEmpresas: 0, totalCadastur: 0, percentual: 0, trend: "Sem dados" },
+  statusEntidades: { ativos: 0, inativos: 0 },
   infra: {
-    meiosHospedagem: 98, totalLeitos: 33057, totalUHs: 5917,
-    imoveisTemporada: 412, meiosIrregulares: 14, uhsIrregulares: 203,
-    totalGeralUHs: 6329, totalGeralLeitos: 33260, estimativaLeiosConstrucao: 1840,
+    meiosHospedagem: 0, totalLeitos: 0, totalUHs: 0,
+    imoveisTemporada: 0, meiosIrregulares: 0, uhsIrregulares: 0,
+    totalGeralUHs: 0, totalGeralLeitos: 0, estimativaLeiosConstrucao: 0,
   },
   ods: [
-    { titulo: "Eixo Acessibilidade", subtitulo: "ODS 10 & 11", cor: "#1a6fbf", percent: 22,
-      data: [{ name: "Com PCD", value: 68, color: "#1a6fbf" }, { name: "Sem PCD", value: 244, color: "#e2e8f0" }] },
-    { titulo: "Eixo Sustentabilidade", subtitulo: "ODS 12 & 13", cor: "#16a34a", percent: 13,
-      data: [{ name: "Com Selo", value: 42, color: "#16a34a" }, { name: "Sem Selo", value: 270, color: "#e2e8f0" }] },
-    { titulo: "Eixo Energia Limpa", subtitulo: "ODS 7", cor: "#f59e0b", percent: 9,
-      data: [{ name: "Renováveis", value: 28, color: "#f59e0b" }, { name: "Convencional", value: 284, color: "#e2e8f0" }] },
-    { titulo: "Eixo Resíduos", subtitulo: "ODS 12", cor: "#8b5cf6", percent: 11,
-      data: [{ name: "Com Plano", value: 35, color: "#8b5cf6" }, { name: "Sem Plano", value: 277, color: "#e2e8f0" }] },
+    { titulo: "Eixo Acessibilidade", subtitulo: "ODS 10 & 11", cor: "#1a6fbf", percent: 0,
+      data: [{ name: "Com PCD", value: 0, color: "#1a6fbf" }, { name: "Sem PCD", value: 0, color: "#e2e8f0" }] },
+    { titulo: "Eixo Sustentabilidade", subtitulo: "ODS 12 & 13", cor: "#16a34a", percent: 0,
+      data: [{ name: "Com Selo", value: 0, color: "#16a34a" }, { name: "Sem Selo", value: 0, color: "#e2e8f0" }] },
+    { titulo: "Eixo Energia Limpa", subtitulo: "ODS 7", cor: "#f59e0b", percent: 0,
+      data: [{ name: "Renováveis", value: 0, color: "#f59e0b" }, { name: "Convencional", value: 0, color: "#e2e8f0" }] },
+    { titulo: "Eixo Resíduos", subtitulo: "ODS 12", cor: "#8b5cf6", percent: 0,
+      data: [{ name: "Com Plano", value: 0, color: "#8b5cf6" }, { name: "Sem Plano", value: 0, color: "#e2e8f0" }] },
   ],
 };
 
@@ -143,8 +143,8 @@ export function Dashboard() {
         const data = await apiService.getDashboardResumo();
         setDashboardData(data); // Guarda os dados reais no estado!
       } catch (error) {
-        console.error("Backend inacessível. Mantendo dados falsos (mock).", error);
-        setDashboardData(DADOS_ATUAIS); // Plano B (segurança)
+        console.error("Backend inacessível. Usando estado vazio.", error);
+        setDashboardData(DADOS_ATUAIS);
       } finally {
         setLoadingData(false); // Esconde a ampulheta
       }
@@ -210,7 +210,7 @@ export function Dashboard() {
             <p className="text-white/60 text-xs font-medium">Total de Entidades no Banco</p>
             <p className="text-white text-2xl font-bold leading-none mt-0.5">
               {snap.banco.totalEntidades.toLocaleString("pt-BR")}
-              <span className="text-sm font-normal text-white/60 ml-2">estabelecimentos</span>
+              <span className="text-sm font-normal text-white/60 ml-2">registros</span>
             </p>
           </div>
         </div>
@@ -298,11 +298,11 @@ export function Dashboard() {
               <Building2 size={24} className="text-[#1a6fbf]" />
             </div>
             <div>
-              <p className="text-[#64748b] text-xs font-medium">Total de Empresas</p>
+              <p className="text-[#64748b] text-xs font-medium">Total de Estabelecimentos</p>
               <p className="text-4xl font-bold text-[#0c2340] leading-none mt-1">
                 {snap.cadastur.totalEmpresas.toLocaleString("pt-BR")}
               </p>
-              <p className="text-[#94a3b8] text-xs mt-1">Estabelecimentos cadastrados</p>
+              <p className="text-[#94a3b8] text-xs mt-1">Entidades empresariais</p>
             </div>
           </div>
 
@@ -334,7 +334,7 @@ export function Dashboard() {
           <div className="bg-white rounded-xl border border-[#e2e8f0] p-5 shadow-sm">
             <p className="text-[#64748b] text-xs font-medium mb-3">Status das Entidades</p>
             <MiniDonut
-              percent={Math.round((snap.statusEntidades.ativos / snap.cadastur.totalEmpresas) * 100)}
+              percent={snap.banco.totalEntidades > 0 ? Math.round((snap.statusEntidades.ativos / snap.banco.totalEntidades) * 100) : 0}
               color="#16a34a"
             />
             <div className="mt-3 space-y-1.5">
@@ -414,9 +414,9 @@ export function Dashboard() {
         {/* Painel de totais e estimativas — tipografia grande */}
         <div className="grid grid-cols-3 gap-4">
           {[
-            { label: "Total Geral de UHs", value: snap.infra.totalGeralUHs.toLocaleString("pt-BR"), icon: KeyRound, color: "text-[#1a6fbf]", desc: "incluindo temporada e irregulares" },
+            { label: "Total Geral de UHs", value: snap.infra.totalGeralUHs.toLocaleString("pt-BR"), icon: KeyRound, color: "text-[#1a6fbf]", desc: "incluindo temporada" },
             { label: "Total Geral de Leitos", value: snap.infra.totalGeralLeitos.toLocaleString("pt-BR"), icon: BedDouble, color: "text-emerald-600", desc: "capacidade total instalada" },
-            { label: "Estimativa Leitos em Construção", value: snap.infra.estimativaLeiosConstrucao.toLocaleString("pt-BR"), icon: TrendingUp, color: "text-violet-600", desc: "previsão de novos leitos" },
+            { label: "Estimativa Leitos em Construção", value: snap.infra.estimativaLeiosConstrucao.toLocaleString("pt-BR"), icon: TrendingUp, color: "text-violet-600", desc: "sem indicador cadastrado" },
           ].map((item) => {
             const Icon = item.icon;
             return (

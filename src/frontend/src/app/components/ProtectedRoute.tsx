@@ -54,5 +54,23 @@ export function SmartRedirectRoute({ children }: SmartRedirectRouteProps) {
     return <Navigate to="/dashboard" replace />; 
   }
 
-  return <Navigate to="/portal-trade" replace />;
+  return <Navigate to="/trade-portal" replace />;
+}
+
+export function TradeOnlyRoute({ children }: ProtectedRouteProps) {
+  const { user, isAuthenticated, isLoading, isTradeUser } = useAuth();
+
+  if (isLoading) {
+    return <div className="p-6 text-[#64748b]">Carregando portal...</div>;
+  }
+
+  if (!isAuthenticated || !user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (!isTradeUser()) {
+    return <Navigate to="/portal-trade" replace />;
+  }
+
+  return children;
 }

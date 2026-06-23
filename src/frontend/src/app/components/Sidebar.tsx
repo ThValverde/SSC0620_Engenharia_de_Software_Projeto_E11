@@ -87,6 +87,10 @@ export function Sidebar() {
       return canAccessModule("users");
     }
 
+    if (item.to === "/portal-trade") {
+      return true;
+    }
+
     if (!item.requiresRole) return true;
     return item.requiresRole.some((role) => {
       if (role === "Secretaria_Admin" || role === "Secretaria_Staff") {
@@ -152,12 +156,15 @@ export function Sidebar() {
         </p>
         {filteredNavItems.map((item) => {
           const Icon = item.icon;
-          const active = isActive(item.to);
+          const to = item.to === "/portal-trade" ? (isTradeUser() ? "/trade-portal" : "/portal-trade") : item.to;
+          const active = isActive(to);
+          const label = item.to === "/portal-trade" ? (isTradeUser() ? "Meu Portal" : "Portal do Trade") : item.label;
+          const sublabel = item.to === "/portal-trade" ? (isTradeUser() ? "Autoatendimento" : "Gestão do Trade") : item.sublabel;
           return (
             <NavLink
               key={item.to}
-              to={item.to}
-              end={item.to === "/"}
+              to={to}
+              end={to === "/"}
               className={`flex items-center gap-3 px-3 py-3 rounded-lg transition-all group relative ${
                 active
                   ? "bg-[#1a6fbf] text-white shadow-sm"
@@ -170,10 +177,10 @@ export function Sidebar() {
               <Icon size={18} className={active ? "text-white" : "text-white/60 group-hover:text-white/90"} />
               <div className="flex-1 min-w-0">
                 <p className={`text-sm leading-tight ${active ? "font-semibold" : "font-medium"}`}>
-                  {item.label}
+                  {label}
                 </p>
                 <p className={`text-[11px] ${active ? "text-white/70" : "text-white/40"}`}>
-                  {item.sublabel}
+                  {sublabel}
                 </p>
               </div>
               {active && <ChevronRight size={14} className="text-white/60 flex-shrink-0" />}

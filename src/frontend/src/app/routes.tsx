@@ -6,9 +6,10 @@ import { CentralImportacao } from "./pages/CentralImportacao";
 import { CruzamentoDados } from "./pages/CruzamentoDados";
 import { Historico } from "./pages/Historico";
 import { PortalTrade } from "./pages/PortalTrade";
+import { TradePortalPage } from "./pages/TradePortalPage";
 import { UsersPage } from "./pages/UsersPage";
 import { LoginPage } from "./pages/LoginPage";
-import { ProtectedRoute, SmartRedirectRoute } from "./components/ProtectedRoute";
+import { ProtectedRoute, SmartRedirectRoute, TradeOnlyRoute } from "./components/ProtectedRoute";
 
 export const router = createBrowserRouter([
   {
@@ -67,9 +68,17 @@ export const router = createBrowserRouter([
       {
         path: "/portal-trade",
         element: (
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={["Secretaria_Admin", "Secretaria_Staff"]}>
             <PortalTrade />
           </ProtectedRoute>
+        ),
+      },
+      {
+        path: "/trade-portal",
+        element: (
+          <TradeOnlyRoute>
+            <TradePortalPage />
+          </TradeOnlyRoute>
         ),
       },
       {

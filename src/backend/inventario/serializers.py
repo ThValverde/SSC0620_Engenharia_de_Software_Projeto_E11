@@ -6,6 +6,7 @@ from .models import (
     Endereco,
     Contato,
     RedeSocial,
+    Cadastur,
     Pagamento,
     EscopoCatalogo,
     Caracteristica,       
@@ -29,6 +30,7 @@ from .models import (
     TaxiAplicativo,
     Estabelecimento,
     VinculoTrade,
+    RegistroODS,
 )
 
 #==========================================
@@ -206,6 +208,485 @@ class UserAdminSerializer(serializers.ModelSerializer):
 
         instance.is_staff = instance.is_superuser or instance.groups.filter(name__in=['Secretaria_Admin', 'Secretaria_Staff']).exists()
         instance.save(update_fields=['is_staff'])
+        return instance
+
+
+class TradeUserSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True, required=False, allow_blank=False)
+    estabelecimento_id = serializers.IntegerField(write_only=True, required=False, allow_null=True)
+    nivel_permissao = serializers.ChoiceField(
+        choices=['admin', 'editor', 'visualizador'],
+        required=False,
+        default='visualizador',
+    )
+    last_login = serializers.DateTimeField(read_only=True)
+    grupos = serializers.SerializerMethodField()
+    estabelecimento = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = (
+            'id',
+            'username',
+            'email',
+            'first_name',
+            'last_name',
+            'is_active',
+            'last_login',
+            'grupos',
+            'estabelecimento',
+            'estabelecimento_id',
+            'nivel_permissao',
+            'password',
+        )
+
+    def get_grupos(self, obj):
+        return list(obj.groups.values_list('name', flat=True))
+
+    def get_estabelecimento(self, obj):
+        vinculo = obj.vinculos_trade.select_related('estabelecimento').first()
+        if not vinculo:
+            return None
+
+        estabelecimento = vinculo.estabelecimento
+        return {
+            'id': estabelecimento.id,
+            'nome_fantasia': getattr(estabelecimento, 'nome_fantasia', '') or '',
+            'razao_social': getattr(estabelecimento, 'razao_social', '') or '',
+            'cnpj': getattr(estabelecimento, 'cnpj', '') or '',
+            'tipo': estabelecimento.tipo,
+            'endpoint': {
+                'meio_hospedagem': 'hospedagens',
+                'meio_alimentacao_bebida': 'alimentacao',
+                'atrativo': 'atrativos',
+                'espaco_evento': 'espacos-eventos',
+                'agencia_turismo': 'agencias',
+                'organizador_evento': 'organizadores-eventos',
+                'locadora_transporte': 'locadoras-transporte',
+                'artesanato': 'artesanato',
+                'banco': 'bancos',
+                'templo_religioso': 'templos',
+                'servico_saude': 'saude',
+                'servico_apoio': 'apoio',
+            }.get(estabelecimento.tipo, ''),
+            'nivel_permissao': vinculo.nivel_permissao,
+        }
+
+    def validate(self, data):
+        request = self.context.get('request')
+        if request and request.user and request.user.is_authenticated:
+            if not request.user.is_superuser and data.get('is_superuser'):
+                raise serializers.ValidationError({
+                    'is_superuser': 'Somente o superuser Django pode criar contas superuser.'
+                })
+        return data
+
+    def _sync_groups(self, user, groups):
+        if user.is_superuser:
+            user.groups.clear()
+            return
+
+        if groups is None:
+            return
+
+        user.groups.set(groups)
+
+    def _normalize_login_identity(self, validated_data):
+        email = (validated_data.get('email') or '').strip()
+        username = (validated_data.get('username') or '').strip()
+        if not email and not username:
+            raise serializers.ValidationError({
+                'email': 'Informe um email para o usuário trade.'
+            })
+
+        validated_data['username'] = email or username
+
+    def create(self, validated_data):
+        self._normalize_login_identity(validated_data)
+        password = validated_data.pop('password', None)
+        estabelecimento_id = validated_data.pop('estabelecimento_id', None)
+        nivel_permissao = validated_data.pop('nivel_permissao', 'visualizador')
+
+        if not estabelecimento_id:
+            raise serializers.ValidationError({
+                'estabelecimento_id': 'É obrigatório vincular este usuário a um estabelecimento.'
+            })
+
+        try:
+            estabelecimento = Estabelecimento.objects.get(pk=estabelecimento_id)
+        except Estabelecimento.DoesNotExist:
+            raise serializers.ValidationError({
+                'estabelecimento_id': f'Estabelecimento com ID {estabelecimento_id} não existe.'
+            })
+
+        user = User(**validated_data)
+        if password:
+            user.set_password(password)
+        else:
+            user.set_unusable_password()
+
+        user.is_staff = False
+        user.is_superuser = False
+        user.save()
+
+        VinculoTrade.objects.create(
+            usuario=user,
+            estabelecimento=estabelecimento,
+            nivel_permissao=nivel_permissao,
+        )
+        return user
+
+    def update(self, instance, validated_data):
+        self._normalize_login_identity(validated_data)
+        password = validated_data.pop('password', None)
+        estabelecimento_id = validated_data.pop('estabelecimento_id', None)
+        nivel_permissao = validated_data.pop('nivel_permissao', None)
+
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+
+        if password:
+            instance.set_password(password)
+
+        instance.save()
+
+        if estabelecimento_id is not None or nivel_permissao is not None:
+            vinculo = instance.vinculos_trade.select_related('estabelecimento').first()
+            if not vinculo:
+                if not estabelecimento_id:
+                    raise serializers.ValidationError({
+                        'estabelecimento_id': 'É obrigatório informar um estabelecimento.'
+                    })
+                try:
+                    estabelecimento = Estabelecimento.objects.get(pk=estabelecimento_id)
+                except Estabelecimento.DoesNotExist:
+                    raise serializers.ValidationError({
+                        'estabelecimento_id': f'Estabelecimento com ID {estabelecimento_id} não existe.'
+                    })
+                VinculoTrade.objects.create(
+                    usuario=instance,
+                    estabelecimento=estabelecimento,
+                    nivel_permissao=nivel_permissao or 'visualizador',
+                )
+            else:
+                if estabelecimento_id is not None:
+                    try:
+                        vinculo.estabelecimento = Estabelecimento.objects.get(pk=estabelecimento_id)
+                    except Estabelecimento.DoesNotExist:
+                        raise serializers.ValidationError({
+                            'estabelecimento_id': f'Estabelecimento com ID {estabelecimento_id} não existe.'
+                        })
+                if nivel_permissao is not None:
+                    vinculo.nivel_permissao = nivel_permissao
+                vinculo.save()
+
+        return instance
+
+
+class TradePortalEnderecoSerializer(serializers.Serializer):
+    cep = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    rua = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    numero = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    bairro = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    regiao = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    latitude = serializers.DecimalField(required=False, allow_null=True, max_digits=9, decimal_places=6)
+    longitude = serializers.DecimalField(required=False, allow_null=True, max_digits=9, decimal_places=6)
+
+
+class TradePortalContatoSerializer(serializers.Serializer):
+    id = serializers.IntegerField(required=False)
+    telefone = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    email = serializers.EmailField(required=False, allow_blank=True, allow_null=True)
+    cargo = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+
+
+class TradePortalCadasturSerializer(serializers.Serializer):
+    ativo = serializers.BooleanField(required=False)
+    numero = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    vencimento = serializers.DateField(required=False, allow_null=True)
+
+
+class TradePortalInfraestruturaSerializer(serializers.Serializer):
+    uh_total = serializers.IntegerField(required=False, allow_null=True, min_value=0)
+    leitos = serializers.IntegerField(required=False, allow_null=True, min_value=0)
+    capacidade_maxima = serializers.IntegerField(required=False, allow_null=True, min_value=0)
+
+
+class TradePortalMaoDeObraSerializer(serializers.Serializer):
+    qtde_funcionarios_fixos = serializers.IntegerField(required=False, allow_null=True, min_value=0)
+    qtde_funcionarios_temporarios = serializers.IntegerField(required=False, allow_null=True, min_value=0)
+
+
+class TradePortalSustentabilidadeSerializer(serializers.Serializer):
+    acessibilidade_pcd = serializers.BooleanField(required=False)
+    mulheres_lideranca = serializers.BooleanField(required=False)
+    gestao_residuos = serializers.BooleanField(required=False)
+    fontes_renovaveis = serializers.BooleanField(required=False)
+
+
+ODS_TRADE_MAP = {
+    'acessibilidade_pcd': {
+        'ods': None,
+        'keywords': ('pcd', 'acessibilidade'),
+    },
+    'mulheres_lideranca': {
+        'ods': 5,
+        'keywords': ('mulher', 'lider'),
+    },
+    'gestao_residuos': {
+        'ods': 12,
+        'keywords': ('residu', 'resíduo', 'residuo'),
+    },
+    'fontes_renovaveis': {
+        'ods': 7,
+        'keywords': ('renov', 'energia'),
+    },
+}
+
+
+class TradePortalMeuEstabelecimentoSerializer(serializers.Serializer):
+    id = serializers.IntegerField(read_only=True)
+    tipo = serializers.CharField(read_only=True)
+    tipo_label = serializers.CharField(read_only=True)
+    nivel_permissao = serializers.CharField(read_only=True)
+    nome_fantasia = serializers.CharField(required=False, allow_blank=True)
+    razao_social = serializers.CharField(required=False, allow_blank=True)
+    cnpj = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    ativo = serializers.BooleanField(required=False)
+    cadastur = TradePortalCadasturSerializer(required=False)
+    endereco = TradePortalEnderecoSerializer(required=False)
+    contatos = TradePortalContatoSerializer(many=True, required=False)
+    infraestrutura = TradePortalInfraestruturaSerializer(required=False)
+    mao_de_obra = TradePortalMaoDeObraSerializer(required=False)
+    sustentabilidade = TradePortalSustentabilidadeSerializer(required=False)
+
+    def _find_ods_indicator(self, key):
+        cfg = ODS_TRADE_MAP[key]
+        qs = IndicadorODS.objects.all().order_by('id')
+        if cfg['ods'] is not None:
+            qs = qs.filter(ods=cfg['ods'])
+
+        for keyword in cfg['keywords']:
+            match = qs.filter(descricao__icontains=keyword).first()
+            if match:
+                return match
+        return qs.first()
+
+    def _get_ods_state(self, instance):
+        state = {}
+        for key in ODS_TRADE_MAP:
+            indicator = self._find_ods_indicator(key)
+            if not indicator:
+                state[key] = False
+                continue
+            state[key] = instance.indicadores_ods.filter(indicador=indicator).exists()
+        return state
+
+    def _set_ods_flag(self, instance, key, enabled):
+        indicator = self._find_ods_indicator(key)
+        if not indicator:
+            return
+
+        rel = instance.indicadores_ods.filter(indicador=indicator).first()
+        if not enabled:
+            if rel:
+                rel.delete()
+            return
+
+        defaults = {}
+        if indicator.natureza == IndicadorODS.Natureza.QUANTITATIVO:
+            defaults['valor'] = rel.valor if rel and rel.valor is not None else 100
+        else:
+            defaults['valor'] = None
+
+        RegistroODS.objects.update_or_create(
+            registro=instance,
+            indicador=indicator,
+            defaults=defaults,
+        )
+
+    def _trade_instance(self, instance):
+        return instance.especializacao() if hasattr(instance, 'especializacao') else instance
+
+    def to_representation(self, instance):
+        trade = self._trade_instance(instance)
+        endereco = getattr(instance, 'endereco', None)
+        cadastur = getattr(instance, 'cadastur', None)
+        folhas = self._trade_instance(instance)
+
+        infraestrutura = {}
+        if instance.tipo == 'meio_hospedagem':
+            infraestrutura = {
+                'uh_total': getattr(folhas, 'uh_total', None),
+                'leitos': getattr(folhas, 'leitos', None),
+                'capacidade_maxima': None,
+            }
+        elif instance.tipo in ('meio_alimentacao_bebida', 'atrativo'):
+            infraestrutura = {
+                'uh_total': None,
+                'leitos': None,
+                'capacidade_maxima': getattr(instance, 'quantidade', None),
+            }
+        else:
+            infraestrutura = {
+                'uh_total': None,
+                'leitos': None,
+                'capacidade_maxima': getattr(instance, 'quantidade', None),
+            }
+
+        data = {
+            'id': instance.id,
+            'tipo': instance.tipo,
+            'tipo_label': instance.get_tipo_display(),
+            'nivel_permissao': self.context.get('nivel_permissao', 'visualizador'),
+            'nome_fantasia': getattr(instance, 'nome_fantasia', '') or '',
+            'razao_social': getattr(instance, 'razao_social', '') or '',
+            'cnpj': getattr(instance, 'cnpj', '') or '',
+            'ativo': instance.ativo,
+            'cadastur': {
+                'ativo': getattr(cadastur, 'inscricao', False) if cadastur else False,
+                'numero': getattr(cadastur, 'numero', '') or '',
+                'vencimento': getattr(cadastur, 'vencimento', None),
+            },
+            'endereco': {
+                'cep': getattr(endereco, 'cep', '') or '',
+                'rua': getattr(endereco, 'rua', '') or '',
+                'numero': getattr(endereco, 'numero', '') or '',
+                'bairro': getattr(endereco, 'bairro', '') or '',
+                'regiao': getattr(endereco, 'regiao', '') or '',
+                'latitude': getattr(endereco, 'latitude', None),
+                'longitude': getattr(endereco, 'longitude', None),
+            } if endereco else {
+                'cep': '',
+                'rua': '',
+                'numero': '',
+                'bairro': '',
+                'regiao': '',
+                'latitude': None,
+                'longitude': None,
+            },
+            'contatos': [
+                {
+                    'id': contato.id,
+                    'telefone': contato.telefone or '',
+                    'email': contato.email or '',
+                    'cargo': contato.cargo or '',
+                }
+                for contato in instance.contatos.all().order_by('id')
+            ],
+            'infraestrutura': infraestrutura,
+            'mao_de_obra': {
+                'qtde_funcionarios_fixos': getattr(instance, 'qtde_funcionarios_fixos', None),
+                'qtde_funcionarios_temporarios': getattr(instance, 'qtde_funcionarios_temporarios', None),
+            },
+            'sustentabilidade': self._get_ods_state(instance),
+        }
+        return data
+
+    def validate(self, attrs):
+        instance = self.instance
+        if not instance:
+            return attrs
+
+        permission = self.context.get('nivel_permissao', 'visualizador')
+        if permission == 'visualizador' and attrs:
+            raise serializers.ValidationError({
+                'detail': 'Visualizador não pode alterar dados do estabelecimento.'
+            })
+
+        if permission == 'editor' and 'ativo' in attrs and attrs['ativo'] != instance.ativo:
+            raise serializers.ValidationError({
+                'ativo': 'Editor não pode alterar o status do estabelecimento.'
+            })
+
+        infraestrutura = attrs.get('infraestrutura') or {}
+        tipo = instance.tipo
+        if infraestrutura:
+            if tipo == 'meio_hospedagem':
+                if 'capacidade_maxima' in infraestrutura and infraestrutura.get('capacidade_maxima') is not None:
+                    raise serializers.ValidationError({
+                        'infraestrutura': 'Meios de Hospedagem não usam capacidade máxima.'
+                    })
+            elif tipo in ('meio_alimentacao_bebida', 'atrativo'):
+                if infraestrutura.get('uh_total') is not None or infraestrutura.get('leitos') is not None:
+                    raise serializers.ValidationError({
+                        'infraestrutura': 'Essa entidade não possui campos de UHs ou leitos.'
+                    })
+            elif infraestrutura.get('uh_total') is not None or infraestrutura.get('leitos') is not None:
+                raise serializers.ValidationError({
+                    'infraestrutura': 'Essa entidade não possui campos de infraestrutura específicos para hospedagem.'
+                })
+
+        return attrs
+
+    def update(self, instance, validated_data):
+        endereco_data = validated_data.pop('endereco', None)
+        contatos_data = validated_data.pop('contatos', None)
+        cadastur_data = validated_data.pop('cadastur', None)
+        infraestrutura_data = validated_data.pop('infraestrutura', None)
+        mao_de_obra_data = validated_data.pop('mao_de_obra', None)
+        sustentabilidade_data = validated_data.pop('sustentabilidade', None)
+
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+
+        if endereco_data is not None:
+            endereco_defaults = {
+                'cep': endereco_data.get('cep', '') or '',
+                'rua': endereco_data.get('rua', '') or '',
+                'numero': endereco_data.get('numero', '') or '',
+                'bairro': endereco_data.get('bairro', '') or '',
+                'regiao': endereco_data.get('regiao', '') or '',
+                'latitude': endereco_data.get('latitude'),
+                'longitude': endereco_data.get('longitude'),
+            }
+            Endereco.objects.update_or_create(registro=instance, defaults=endereco_defaults)
+
+        if contatos_data is not None:
+            instance.contatos.all().delete()
+            for contato_data in contatos_data:
+                Contato.objects.create(
+                    registro=instance,
+                    telefone=contato_data.get('telefone', '') or '',
+                    email=contato_data.get('email', '') or '',
+                    cargo=contato_data.get('cargo', '') or '',
+                )
+
+        if cadastur_data is not None:
+            Cadastur.objects.update_or_create(
+                registro=instance,
+                defaults={
+                    'inscricao': cadastur_data.get('ativo', False),
+                    'numero': cadastur_data.get('numero', '') or '',
+                    'vencimento': cadastur_data.get('vencimento'),
+                },
+            )
+
+        if infraestrutura_data is not None:
+            if instance.tipo == 'meio_hospedagem':
+                folha = instance.meiohospedagem
+                if 'uh_total' in infraestrutura_data:
+                    folha.uh_total = infraestrutura_data.get('uh_total')
+                if 'leitos' in infraestrutura_data:
+                    folha.leitos = infraestrutura_data.get('leitos')
+                folha.save()
+            elif instance.tipo in ('meio_alimentacao_bebida', 'atrativo'):
+                if 'capacidade_maxima' in infraestrutura_data:
+                    instance.quantidade = infraestrutura_data.get('capacidade_maxima')
+                    instance.save(update_fields=['quantidade'])
+
+        if mao_de_obra_data is not None:
+            if 'qtde_funcionarios_fixos' in mao_de_obra_data:
+                instance.qtde_funcionarios_fixos = mao_de_obra_data.get('qtde_funcionarios_fixos')
+            if 'qtde_funcionarios_temporarios' in mao_de_obra_data:
+                instance.qtde_funcionarios_temporarios = mao_de_obra_data.get('qtde_funcionarios_temporarios')
+            instance.save(update_fields=['qtde_funcionarios_fixos', 'qtde_funcionarios_temporarios'])
+
+        if sustentabilidade_data is not None:
+            for key, value in sustentabilidade_data.items():
+                self._set_ods_flag(instance, key, bool(value))
+
         return instance
 
 # ==========================================

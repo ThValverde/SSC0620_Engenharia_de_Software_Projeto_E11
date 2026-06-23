@@ -1,7 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from . import views
-from .views import CadastrarUsuarioView, DashboardResumoView
+from .views import CadastrarUsuarioView, DashboardResumoView, TradePortalResumoView, TradeMeuEstabelecimentoView
 
 router = DefaultRouter()
 
@@ -30,9 +30,12 @@ router.register(r'guias', views.GuiaTurismoViewSet)
 router.register(r'rhc', views.RHCViewSet)
 router.register(r'grupos-folcloricos', views.GrupoFolcloricoViewSet)
 router.register(r'taxis', views.TaxiAplicativoViewSet)
+router.register(r'trade-users', views.TradeUserViewSet)
 
 urlpatterns = [
     path('dashboard/resumo/', DashboardResumoView.as_view(), name='dashboard-resumo'),
+    path('trade/portal/', TradePortalResumoView.as_view(), name='trade-portal-resumo'),
+    path('meu-estabelecimento/', TradeMeuEstabelecimentoView.as_view(), name='trade-meu-estabelecimento'),
     
     path('auth/cadastrar-usuario/', CadastrarUsuarioView.as_view(), name='cadastrar-usuario'),
     path('', include(router.urls)),

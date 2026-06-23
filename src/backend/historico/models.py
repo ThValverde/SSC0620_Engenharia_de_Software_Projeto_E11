@@ -1,5 +1,6 @@
 from django.db import models
 from django.core.validators import MinValueValidator
+from django.contrib.auth.models import User
 
 class Pasta(models.Model):
     """
@@ -99,3 +100,29 @@ class ArquivoAnexo(models.Model):
 
     def __str__(self):
         return self.nome_original
+
+
+def diretorio_upload_importacao(instance, filename):
+    return f"uploads/importacoes/{instance.fonte}/{filename}"
+
+
+class HistoricoImportacao(models.Model):
+    class Status(models.TextChoices):
+        PROCESSADO = "processado", "Processado"
+        FALHOU = "falhou", "Falhou"
+
+    arquivo = models.FileField(upload_to=diretorio_upload_importacao)
+    nome = models.CharField(max_length=255)
+    fonte = models.CharField(max_length=120)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PROCESSADO)
+    autor = models.ForeignKey(User, on_delete=models.PROTECT, related_name="historico_importacoes")
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "historico_importacao"
+        verbose_name = "histórico de importação"
+        verbose_name_plural = "históricos de importação"
+        ordering = ["-criado_em", "-id"]
+
+    def __str__(self):
+        return self.nome
