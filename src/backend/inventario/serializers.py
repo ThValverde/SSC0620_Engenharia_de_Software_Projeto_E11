@@ -30,6 +30,8 @@ from .models import (
     TaxiAplicativo,
     Estabelecimento,
     VinculoTrade,
+    EstabelecimentoCaracteristica,
+    Medicao,
     RegistroODS,
 )
 
@@ -568,7 +570,117 @@ class ODSStateMixin:
             )
 
 
-class TradePortalMeuEstabelecimentoSerializer(ODSStateMixin, serializers.Serializer):
+class CaracteristicasStateField(serializers.Field):
+    def __init__(self, scope_getter, **kwargs):
+        self.scope_getter = scope_getter
+        super().__init__(**kwargs)
+
+    def get_attribute(self, instance):
+        return instance
+
+    def to_representation(self, instance):
+        return list(
+            instance.caracteristicas.values_list('id', flat=True).order_by('id')
+        )
+
+    def to_internal_value(self, data):
+        if data is None:
+            return []
+        if not isinstance(data, list):
+            raise serializers.ValidationError("Características devem ser uma lista de ids.")
+
+        ids = []
+        for value in data:
+            try:
+                ids.append(int(value))
+            except (TypeError, ValueError):
+                raise serializers.ValidationError("Cada característica deve ser um id numérico.")
+        return ids
+
+
+class MetricasStateField(serializers.Field):
+    def get_attribute(self, instance):
+        return instance
+
+    def to_representation(self, instance):
+        return [
+            {"id": med.metrica_id, "valor": str(med.valor)}
+            for med in instance.medicao_set.select_related('metrica').order_by('metrica_id')
+        ]
+
+    def to_internal_value(self, data):
+        if data is None:
+            return []
+        if not isinstance(data, list):
+            raise serializers.ValidationError("Métricas devem ser uma lista de objetos.")
+
+        items = []
+        for item in data:
+            if not isinstance(item, dict):
+                raise serializers.ValidationError("Cada métrica deve ser um objeto.")
+            try:
+                metrica_id = int(item.get("id"))
+            except (TypeError, ValueError):
+                raise serializers.ValidationError("Cada métrica precisa de um id numérico.")
+
+            valor = item.get("valor")
+            if valor in (None, ""):
+                raise serializers.ValidationError("Cada métrica quantitativa precisa de valor.")
+
+            items.append({"id": metrica_id, "valor": valor})
+        return items
+
+
+class CatalogStateMixin:
+    def _sync_caracteristicas(self, instance, caracteristicas_ids):
+        if caracteristicas_ids is None:
+            return
+
+        qs = Caracteristica.objects.filter(id__in=caracteristicas_ids)
+        if qs.count() != len(set(caracteristicas_ids)):
+            raise serializers.ValidationError({"caracteristicas": "Uma ou mais características não existem."})
+
+        links = []
+        for caracteristica in qs:
+            link = EstabelecimentoCaracteristica(
+                estabelecimento=instance,
+                caracteristica=caracteristica,
+            )
+            link.full_clean()
+            links.append(link)
+        instance.caracteristicas.clear()
+        EstabelecimentoCaracteristica.objects.bulk_create(links)
+
+    def _sync_metricas(self, instance, metricas_data):
+        if metricas_data is None:
+            return
+
+        existing = {
+            med.metrica_id: med
+            for med in instance.medicao_set.select_related('metrica').all()
+        }
+        keep_ids = set()
+        for item in metricas_data:
+            metrica_id = item["id"]
+            keep_ids.add(metrica_id)
+            try:
+                metrica = CaracteristicaValor.objects.get(pk=metrica_id)
+            except CaracteristicaValor.DoesNotExist:
+                raise serializers.ValidationError({"metricas": f"Métrica com ID {metrica_id} não existe."})
+
+            medicao = existing.get(metrica_id)
+            if medicao is None:
+                medicao = Medicao(estabelecimento=instance, metrica=metrica, valor=item["valor"])
+            else:
+                medicao.valor = item["valor"]
+            medicao.full_clean()
+            medicao.save()
+
+        for medicao in instance.medicao_set.exclude(metrica_id__in=keep_ids):
+            medicao.delete()
+
+
+class TradePortalMeuEstabelecimentoSerializer(CatalogStateMixin, ODSStateMixin, serializers.Serializer):
     id = serializers.IntegerField(read_only=True)
     tipo = serializers.CharField(read_only=True)
     tipo_label = serializers.CharField(read_only=True)
@@ -582,6 +694,8 @@ class TradePortalMeuEstabelecimentoSerializer(ODSStateMixin, serializers.Seriali
     contatos = TradePortalContatoSerializer(many=True, required=False)
     infraestrutura = TradePortalInfraestruturaSerializer(required=False)
     mao_de_obra = TradePortalMaoDeObraSerializer(required=False)
+    caracteristicas = CaracteristicasStateField(scope_getter=None, required=False)
+    metricas = MetricasStateField(required=False)
 
     def _trade_instance(self, instance):
         return instance.especializacao() if hasattr(instance, 'especializacao') else instance
@@ -704,6 +818,8 @@ class TradePortalMeuEstabelecimentoSerializer(ODSStateMixin, serializers.Seriali
         infraestrutura_data = validated_data.pop('infraestrutura', None)
         mao_de_obra_data = validated_data.pop('mao_de_obra', None)
         sustentabilidade_data = validated_data.pop('sustentabilidade', None)
+        caracteristicas_data = validated_data.pop('caracteristicas', None)
+        metricas_data = validated_data.pop('metricas', None)
 
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
@@ -763,6 +879,8 @@ class TradePortalMeuEstabelecimentoSerializer(ODSStateMixin, serializers.Seriali
 
         if sustentabilidade_data is not None:
             self._sync_ods_state(instance, sustentabilidade_data)
+        self._sync_caracteristicas(instance, caracteristicas_data)
+        self._sync_metricas(instance, metricas_data)
 
         return instance
 
@@ -789,7 +907,7 @@ class RedeSocialSerializer(serializers.ModelSerializer):
 # 2. SERIALIZER PAI (Classe Base)
 # ==========================================
 
-class RegistroBaseSerializer(ODSStateMixin, serializers.ModelSerializer):
+class RegistroBaseSerializer(CatalogStateMixin, ODSStateMixin, serializers.ModelSerializer):
     """
     Serializer base que lida automaticamente com Endereço e Contatos
     para qualquer filha de RegistroInventario.
@@ -798,6 +916,8 @@ class RegistroBaseSerializer(ODSStateMixin, serializers.ModelSerializer):
     contatos = ContatoSerializer(many=True, required=False)
     redes_sociais = RedeSocialSerializer(many=True, required=False) 
     sustentabilidade = ODSStateField(required=False)
+    caracteristicas = CaracteristicasStateField(scope_getter=None, required=False)
+    metricas = MetricasStateField(required=False)
 
 
     def create(self, validated_data):
@@ -806,6 +926,8 @@ class RegistroBaseSerializer(ODSStateMixin, serializers.ModelSerializer):
         redes_data = validated_data.pop('redes_sociais', []) 
         formas_pagamento_data = validated_data.pop('formas_pagamento', None)
         sustentabilidade_data = validated_data.pop('sustentabilidade', None)
+        caracteristicas_data = validated_data.pop('caracteristicas', None)
+        metricas_data = validated_data.pop('metricas', None)
 
         instancia = super().create(validated_data)
 
@@ -822,6 +944,8 @@ class RegistroBaseSerializer(ODSStateMixin, serializers.ModelSerializer):
             instancia.formas_pagamento.set(formas_pagamento_data)
 
         self._sync_ods_state(instancia, sustentabilidade_data)
+        self._sync_caracteristicas(instancia, caracteristicas_data)
+        self._sync_metricas(instancia, metricas_data)
 
         return instancia
 
@@ -831,6 +955,8 @@ class RegistroBaseSerializer(ODSStateMixin, serializers.ModelSerializer):
         redes_data = validated_data.pop('redes_sociais', None)
         formas_pagamento_data = validated_data.pop('formas_pagamento', None)
         sustentabilidade_data = validated_data.pop('sustentabilidade', None)
+        caracteristicas_data = validated_data.pop('caracteristicas', None)
+        metricas_data = validated_data.pop('metricas', None)
 
         instancia = super().update(instance, validated_data)
 
@@ -856,6 +982,8 @@ class RegistroBaseSerializer(ODSStateMixin, serializers.ModelSerializer):
             instancia.formas_pagamento.set(formas_pagamento_data)
 
         self._sync_ods_state(instancia, sustentabilidade_data)
+        self._sync_caracteristicas(instancia, caracteristicas_data)
+        self._sync_metricas(instancia, metricas_data)
 
         return instancia
 

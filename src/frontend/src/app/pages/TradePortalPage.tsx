@@ -3,6 +3,7 @@ import { Building2, Loader2, Plus, Save, Shield, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { apiService } from "../services/api";
 import { useAuth } from "../contexts/AuthContext";
+import { CatalogTreeEditor, type CatalogSection } from "../components/CatalogTreeEditor";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Input } from "../components/ui/input";
@@ -69,6 +70,8 @@ type TradeEstablishment = {
     ativo: boolean;
     valor: number | null;
   }[];
+  caracteristicas: number[];
+  metricas: Array<{ id: number; valor: string }>;
 };
 
 type TradePortalForm = {
@@ -99,6 +102,8 @@ type TradePortalForm = {
     qtde_funcionarios_temporarios: string;
   };
   sustentabilidade: OdsFormItem[];
+  caracteristicasSelecionadas: number[];
+  metricas: Array<{ id: number; valor: string }>;
 };
 
 const emptyContact = (): ContactForm => ({ telefone: "", email: "", cargo: "" });
@@ -131,6 +136,8 @@ const emptyForm = (): TradePortalForm => ({
     qtde_funcionarios_temporarios: "",
   },
   sustentabilidade: [],
+  caracteristicasSelecionadas: [],
+  metricas: [],
 });
 
 function toDigits(value: string) {
@@ -187,6 +194,8 @@ function mapToForm(data: TradeEstablishment): TradePortalForm {
       qtde_funcionarios_temporarios: data.mao_de_obra?.qtde_funcionarios_temporarios?.toString() || "",
     },
     sustentabilidade: mapSustentabilidade(data.sustentabilidade || []),
+    caracteristicasSelecionadas: data.caracteristicas || [],
+    metricas: data.metricas || [],
   };
 }
 
@@ -197,6 +206,7 @@ export function TradePortalPage() {
   const [saving, setSaving] = useState(false);
   const [entity, setEntity] = useState<TradeEstablishment | null>(null);
   const [form, setForm] = useState<TradePortalForm>(emptyForm());
+  const [catalogTree, setCatalogTree] = useState<CatalogSection[]>([]);
 
   useEffect(() => {
     const load = async () => {
@@ -217,6 +227,33 @@ export function TradePortalPage() {
       load();
     }
   }, [isLoading, tradeUser]);
+
+  useEffect(() => {
+    const loadCatalog = async () => {
+      const escopo = entity?.tipo === "meio_hospedagem"
+        ? "meio_hospedagem"
+        : entity?.tipo === "meio_alimentacao_bebida"
+          ? "alimentacao"
+          : undefined;
+
+      if (!escopo) {
+        setCatalogTree([]);
+        return;
+      }
+
+      try {
+        const tree = await apiService.getCatalogTree(escopo);
+        setCatalogTree(tree);
+      } catch (error) {
+        console.error(error);
+        setCatalogTree([]);
+      }
+    };
+
+    if (entity) {
+      loadCatalog();
+    }
+  }, [entity]);
 
   const permission = entity?.nivel_permissao || "visualizador";
   const canEdit = permission === "editor" || permission === "admin";
@@ -262,6 +299,34 @@ export function TradePortalPage() {
         return { ...item, [field]: value as string };
       }),
     }));
+  };
+
+  const toggleCaracteristica = (id: number, checked: boolean) => {
+    setForm((prev) => ({
+      ...prev,
+      caracteristicasSelecionadas: checked
+        ? Array.from(new Set([...prev.caracteristicasSelecionadas, id]))
+        : prev.caracteristicasSelecionadas.filter((itemId) => itemId !== id),
+    }));
+  };
+
+  const toggleCatalogSectionQuestion = (section: CatalogSection, checked: boolean) => {
+    const sectionIds = section.subgrupos.flatMap((group) => group.opcoes.map((option) => option.id));
+    const negationIds = section.subgrupos.flatMap((group) =>
+      group.opcoes.filter((option) => option.categoria.trim().toLowerCase() === "não").map((option) => option.id)
+    );
+
+    setForm((prev) => {
+      const current = new Set(prev.caracteristicasSelecionadas);
+      sectionIds.forEach((id) => current.delete(id));
+      if (!checked) {
+        negationIds.forEach((id) => current.add(id));
+      }
+      return {
+        ...prev,
+        caracteristicasSelecionadas: Array.from(current),
+      };
+    });
   };
 
   const handleSubmit = async () => {
@@ -313,6 +378,8 @@ export function TradePortalPage() {
         ativo: item.ativo,
         valor: item.natureza === "quant" ? toNumberOrNull(item.valor) : null,
       })),
+      caracteristicas: form.caracteristicasSelecionadas,
+      metricas: form.metricas.map((item) => ({ id: item.id, valor: toNumberOrNull(item.valor) })),
     };
 
     try {
@@ -575,6 +642,19 @@ export function TradePortalPage() {
                     )}
                   </div>
                 ))}
+              </div>
+
+              <div className="mt-6">
+                <h4 className="text-[#0c2340] mb-3">Infraestrutura e acessibilidade do banco</h4>
+                <CatalogTreeEditor
+                  tree={catalogTree}
+                  selectedIds={form.caracteristicasSelecionadas}
+                  canEdit={canEdit}
+                  onToggleOption={toggleCaracteristica}
+                  onToggleSectionQuestion={toggleCatalogSectionQuestion}
+                  emptyMessage="Nenhum catálogo de infraestrutura disponível para este tipo."
+                  title={undefined}
+                />
               </div>
             </CardContent>
           </Card>

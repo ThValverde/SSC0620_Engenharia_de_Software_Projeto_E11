@@ -306,6 +306,58 @@ class DynamicODSSerializerTests(TestCase):
         self.assertEqual(data["sustentabilidade"][1]["descricao"], "Mulheres em posição de liderança")
 
 
+class DynamicCatalogSerializerTests(TestCase):
+    def setUp(self):
+        self.hotel = MeioHospedagem.objects.create(nome_fantasia="Hotel A")
+        self.carac_1 = Caracteristica.objects.create(
+            escopo="meio_hospedagem",
+            nome="Acessibilidade",
+            categoria="Rampa",
+        )
+        self.carac_2 = Caracteristica.objects.create(
+            escopo="meio_hospedagem",
+            nome="Acessibilidade",
+            categoria="Braille",
+        )
+
+    def test_serializer_exposes_characteristics_from_db(self):
+        data = MeioHospedagemSerializer(self.hotel).data
+        self.assertEqual(data["caracteristicas"], [])
+
+    def test_serializer_syncs_characteristics(self):
+        serializer = MeioHospedagemSerializer(
+            self.hotel,
+            data={
+                "nome_fantasia": "Hotel A",
+                "caracteristicas": [self.carac_1.id, self.carac_2.id],
+            },
+            partial=True,
+        )
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        serializer.save()
+        self.assertEqual(
+            list(self.hotel.caracteristicas.order_by("id").values_list("id", flat=True)),
+            [self.carac_1.id, self.carac_2.id],
+        )
+
+    def test_trade_portal_serializer_syncs_characteristics(self):
+        serializer = TradePortalMeuEstabelecimentoSerializer(
+            self.hotel,
+            data={
+                "nome_fantasia": "Hotel A",
+                "caracteristicas": [self.carac_1.id],
+            },
+            partial=True,
+            context={"nivel_permissao": "editor"},
+        )
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        serializer.save()
+        self.assertEqual(
+            list(self.hotel.caracteristicas.values_list("id", flat=True)),
+            [self.carac_1.id],
+        )
+
+
 class GrupoFolcloricoTests(TestCase):
     """tipo_documento + documento substituem o ambíguo CNPJ_OU_CPF."""
 

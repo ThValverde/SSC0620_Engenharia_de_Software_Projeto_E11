@@ -76,6 +76,36 @@ interface OdsIndicatorState extends OdsCatalogItem {
   valor: number | null;
 }
 
+interface CatalogOption {
+  id: number;
+  categoria: string;
+  customizada: boolean;
+}
+
+interface CatalogSubgroup {
+  subgrupo_nome: string;
+  opcoes: CatalogOption[];
+}
+
+interface CatalogSection {
+  secao_id: number;
+  secao_nome: string;
+  com_pergunta: boolean;
+  subgrupos: CatalogSubgroup[];
+}
+
+interface CatalogCreatePayload {
+  escopo: string;
+  secao: number;
+  nome: string;
+  categoria: string;
+  customizada: boolean;
+}
+
+interface CatalogUpdatePayload {
+  categoria: string;
+}
+
 interface TradePortalMyEstablishment {
   id: number;
   tipo: string;
@@ -102,6 +132,11 @@ interface TradePortalMyEstablishment {
     qtde_funcionarios_temporarios: number | null;
   };
   sustentabilidade: OdsIndicatorState[];
+  caracteristicas: number[];
+  metricas: Array<{
+    id: number;
+    valor: string;
+  }>;
 }
 
 interface HistoricoImportacao {
@@ -145,6 +180,68 @@ class ApiService {
     const response = await this.api.get('/inventario/ods/');
     const data = response.data as any;
     return Array.isArray(data) ? data : (data?.results ?? []);
+  }
+
+  async getCatalogTree(escopo: string): Promise<CatalogSection[]> {
+    const response = await this.api.get(`/inventario/caracteristicas/arvore/?escopo=${encodeURIComponent(escopo)}`);
+    const data = response.data as any;
+    return Array.isArray(data) ? data : (data?.results ?? []);
+  }
+
+  async createCatalogCharacteristic(payload: CatalogCreatePayload): Promise<{ id: number; categoria: string; customizada: boolean }> {
+    try {
+      const response = await this.api.post('/inventario/caracteristicas/', payload);
+      toast.success('Opção adicionada ao catálogo');
+      return response.data;
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        const responseData = error.response?.data as any;
+        const message =
+          responseData?.detail ||
+          responseData?.error ||
+          (typeof responseData === 'string' ? responseData : null) ||
+          'Erro ao adicionar opção ao catálogo';
+        toast.error(message);
+      }
+      throw error;
+    }
+  }
+
+  async updateCatalogCharacteristic(id: number, payload: CatalogUpdatePayload): Promise<{ id: number; categoria: string; customizada: boolean }> {
+    try {
+      const response = await this.api.patch(`/inventario/caracteristicas/${id}/`, payload);
+      toast.success('Opção atualizada no catálogo');
+      return response.data;
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        const responseData = error.response?.data as any;
+        const message =
+          responseData?.detail ||
+          responseData?.error ||
+          (typeof responseData === 'string' ? responseData : null) ||
+          'Erro ao atualizar opção do catálogo';
+        toast.error(message);
+      }
+      throw error;
+    }
+  }
+
+  async deleteCatalogCharacteristic(id: number): Promise<void> {
+    try {
+      await this.api.delete(`/inventario/caracteristicas/${id}/`);
+      toast.success('Opção removida do catálogo');
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        const responseData = error.response?.data as any;
+        const message =
+          responseData?.detail ||
+          responseData?.error ||
+          (typeof responseData === 'string' ? responseData : null) ||
+          'Erro ao remover opção do catálogo';
+        toast.error(message);
+      }
+      throw error;
+    }
   }
 
   async createInventory(endpoint: string, payload: InventoryEndpointPayload): Promise<any> {

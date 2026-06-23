@@ -3,17 +3,29 @@ import { toast } from "sonner";
 import {
   Plus, Search, Pencil, Trash2, X, ChevronDown,
   CheckCircle2, XCircle, Filter, Download,
-  FileText, Building, Leaf,
+  FileText, Building,
 } from "lucide-react";
 import { apiService } from "../services/api";
+import { useAuth } from "../contexts/AuthContext";
+import { CatalogTreeEditor, type CatalogSection } from "../components/CatalogTreeEditor";
 
 type Segmento =
   | "Meio de Hospedagem"
   | "Atrativo Turístico"
   | "Alimentação"
-  | "Serviço de Saúde"
+  | "Espaço de Evento"
   | "Agência de Viagem"
-  | "Transporte Turístico";
+  | "Organizador de Evento"
+  | "Transporte Turístico"
+  | "Artesanato"
+  | "Banco"
+  | "Templo Religioso"
+  | "Serviço de Saúde"
+  | "Serviço de Apoio"
+  | "Guia de Turismo"
+  | "RHC"
+  | "Grupo Folclórico"
+  | "Táxi/Aplicativo";
 
 type OdsNatureza = "quali" | "quant";
 
@@ -44,27 +56,57 @@ const segmentos: Segmento[] = [
   "Meio de Hospedagem",
   "Atrativo Turístico",
   "Alimentação",
-  "Serviço de Saúde",
+  "Espaço de Evento",
   "Agência de Viagem",
+  "Organizador de Evento",
   "Transporte Turístico",
+  "Artesanato",
+  "Banco",
+  "Templo Religioso",
+  "Serviço de Saúde",
+  "Serviço de Apoio",
+  "Guia de Turismo",
+  "RHC",
+  "Grupo Folclórico",
+  "Táxi/Aplicativo",
 ];
 
 const segmentoColors: Record<Segmento, string> = {
   "Meio de Hospedagem": "bg-blue-100 text-blue-700",
   "Atrativo Turístico": "bg-amber-100 text-amber-700",
   "Alimentação": "bg-green-100 text-green-700",
-  "Serviço de Saúde": "bg-violet-100 text-violet-700",
+  "Espaço de Evento": "bg-purple-100 text-purple-700",
   "Agência de Viagem": "bg-cyan-100 text-cyan-700",
+  "Organizador de Evento": "bg-pink-100 text-pink-700",
   "Transporte Turístico": "bg-orange-100 text-orange-700",
+  "Artesanato": "bg-red-100 text-red-700",
+  "Banco": "bg-yellow-100 text-yellow-700",
+  "Templo Religioso": "bg-indigo-100 text-indigo-700",
+  "Serviço de Saúde": "bg-violet-100 text-violet-700",
+  "Serviço de Apoio": "bg-teal-100 text-teal-700",
+  "Guia de Turismo": "bg-lime-100 text-lime-700",
+  "RHC": "bg-fuchsia-100 text-fuchsia-700",
+  "Grupo Folclórico": "bg-rose-100 text-rose-700",
+  "Táxi/Aplicativo": "bg-slate-100 text-slate-700",
 };
 
 const segmentMapping: Record<Segmento, string> = {
   "Meio de Hospedagem": "hospedagens",
   "Atrativo Turístico": "atrativos",
   "Alimentação": "alimentacao",
-  "Serviço de Saúde": "saude",
+  "Espaço de Evento": "espacos-eventos",
   "Agência de Viagem": "agencias",
+  "Organizador de Evento": "organizadores-eventos",
   "Transporte Turístico": "locadoras-transporte",
+  "Artesanato": "artesanato",
+  "Banco": "bancos",
+  "Templo Religioso": "templos",
+  "Serviço de Saúde": "saude",
+  "Serviço de Apoio": "apoio",
+  "Guia de Turismo": "guias",
+  "RHC": "rhc",
+  "Grupo Folclórico": "grupos-folcloricos",
+  "Táxi/Aplicativo": "taxis",
 };
 
 const endpointToSegment = Object.entries(segmentMapping).reduce(
@@ -74,6 +116,11 @@ const endpointToSegment = Object.entries(segmentMapping).reduce(
   },
   {} as Record<string, Segmento>
 );
+
+const segmentoToEscopo: Partial<Record<Segmento, string>> = {
+  "Meio de Hospedagem": "meio_hospedagem",
+  "Alimentação": "alimentacao",
+};
 
 interface FormData {
   razaoSocial: string;
@@ -103,6 +150,8 @@ interface FormData {
   cadeiraRodas: boolean;
   produtosLocais: boolean;
   sustentabilidade: OdsFormItem[];
+  caracteristicasSelecionadas: number[];
+  metricas: Array<{ id: number; valor: string }>;
 }
 
 const buildOdsItems = (catalog: OdsCatalogItem[], current: OdsFormItem[] = []): OdsFormItem[] => {
@@ -125,17 +174,19 @@ const createEmptyForm = (catalog: OdsCatalogItem[] = []): FormData => ({
   banheirosPCD: false, rampaAcesso: false, sinalizacaoBraile: false, cadeiraRodas: false,
   produtosLocais: false,
   sustentabilidade: buildOdsItems(catalog),
+  caracteristicasSelecionadas: [],
+  metricas: [],
 });
 
-type TabKey = "cadastrais" | "infra" | "acessibilidade";
+type TabKey = "cadastrais" | "infra";
 
 const tabs: { key: TabKey; label: string; icon: typeof FileText }[] = [
   { key: "cadastrais", label: "Dados Cadastrais", icon: FileText },
-  { key: "infra", label: "Infraestrutura e Capacidade", icon: Building },
-  { key: "acessibilidade", label: "Acessibilidade e Sustentabilidade", icon: Leaf },
+  { key: "infra", label: "Infraestrutura, Acessibilidade e Sustentabilidade", icon: Building },
 ];
 
 export function Inventario() {
+  const { isSuperuser, isSecretariaAdmin, isSecretariaStaff } = useAuth();
   const [dados, setDados] = useState<Estabelecimento[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -149,6 +200,7 @@ export function Inventario() {
   const [deleteConfirm, setDeleteConfirm] = useState<Estabelecimento | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [odsCatalog, setOdsCatalog] = useState<OdsCatalogItem[]>([]);
+  const [catalogTree, setCatalogTree] = useState<CatalogSection[]>([]);
 
   useEffect(() => {
     const fetchInventario = async () => {
@@ -202,6 +254,30 @@ export function Inventario() {
     fetchOdsCatalog();
   }, []);
 
+  useEffect(() => {
+    const fetchCatalogTree = async () => {
+      const escopo = formData.segmento ? segmentoToEscopo[formData.segmento] : undefined;
+      if (!escopo) {
+        setCatalogTree([]);
+        return;
+      }
+
+      try {
+        const tree = await apiService.getCatalogTree(escopo);
+        setCatalogTree(tree);
+      } catch (error) {
+        console.error("Erro ao carregar árvore de características:", error);
+        setCatalogTree([]);
+      }
+    };
+
+    if (showModal) {
+      fetchCatalogTree();
+    } else {
+      setCatalogTree([]);
+    }
+  }, [formData.segmento, showModal]);
+
   const filtered = dados.filter((d) => {
     const matchSearch =
       d.razaoSocial.toLowerCase().includes(search.toLowerCase()) ||
@@ -211,6 +287,120 @@ export function Inventario() {
     const matchStatus = filterStatus === "Todos" || d.status === filterStatus;
     return matchSearch && matchSeg && matchStatus;
   });
+
+  const toggleCaracteristica = (id: number, checked: boolean) => {
+    setFormData((prev) => ({
+      ...prev,
+      caracteristicasSelecionadas: checked
+        ? Array.from(new Set([...prev.caracteristicasSelecionadas, id]))
+        : prev.caracteristicasSelecionadas.filter((itemId) => itemId !== id),
+    }));
+  };
+
+  const toggleCatalogSectionQuestion = (section: CatalogSection, checked: boolean) => {
+    const sectionIds = section.subgrupos.flatMap((group) => group.opcoes.map((option) => option.id));
+    const negationIds = section.subgrupos.flatMap((group) =>
+      group.opcoes.filter((option) => option.categoria.trim().toLowerCase() === "não").map((option) => option.id)
+    );
+
+    setFormData((prev) => {
+      const current = new Set(prev.caracteristicasSelecionadas);
+      sectionIds.forEach((id) => current.delete(id));
+
+      if (!checked) {
+        negationIds.forEach((id) => current.add(id));
+      }
+
+      return {
+        ...prev,
+        caracteristicasSelecionadas: Array.from(current),
+      };
+    });
+  };
+
+  const createCatalogOption = async (section: CatalogSection, subgroup: { subgrupo_nome: string }, label: string) => {
+    const escopo = formData.segmento ? segmentoToEscopo[formData.segmento] : undefined;
+    if (!escopo) {
+      toast.error("Selecione um segmento válido antes de adicionar opções ao catálogo.");
+      return;
+    }
+
+    const canCreate = isSuperuser() || isSecretariaAdmin();
+    if (!canCreate) {
+      toast.error("Seu nível de acesso não permite criar opções no catálogo.");
+      return;
+    }
+
+    const created = await apiService.createCatalogCharacteristic({
+      escopo,
+      secao: section.secao_id,
+      nome: subgroup.subgrupo_nome,
+      categoria: label,
+      customizada: true,
+    });
+
+    setCatalogTree((prev) =>
+      prev.map((item) => {
+        if (item.secao_id !== section.secao_id) return item;
+        return {
+          ...item,
+          subgrupos: item.subgrupos.map((group) => {
+            if (group.subgrupo_nome !== subgroup.subgrupo_nome) return group;
+            return {
+              ...group,
+              opcoes: [
+                ...group.opcoes,
+                {
+                  id: Number(created.id),
+                  categoria: created.categoria,
+                  customizada: Boolean(created.customizada),
+                },
+              ],
+            };
+          }),
+        };
+      })
+    );
+
+    setFormData((prev) => ({
+      ...prev,
+      caracteristicasSelecionadas: Array.from(new Set([...prev.caracteristicasSelecionadas, Number(created.id)])),
+    }));
+  };
+
+  const editCatalogOption = async (option: { id: number; categoria: string }, label: string) => {
+    const updated = await apiService.updateCatalogCharacteristic(option.id, { categoria: label });
+    setCatalogTree((prev) =>
+      prev.map((section) => ({
+        ...section,
+        subgrupos: section.subgrupos.map((group) => ({
+          ...group,
+          opcoes: group.opcoes.map((item) =>
+            item.id === option.id
+              ? { ...item, categoria: updated.categoria, customizada: Boolean(updated.customizada) }
+              : item
+          ),
+        })),
+      }))
+    );
+  };
+
+  const deleteCatalogOption = async (option: { id: number }) => {
+    await apiService.deleteCatalogCharacteristic(option.id);
+    setCatalogTree((prev) =>
+      prev.map((section) => ({
+        ...section,
+        subgrupos: section.subgrupos.map((group) => ({
+          ...group,
+          opcoes: group.opcoes.filter((item) => item.id !== option.id),
+        })),
+      }))
+    );
+    setFormData((prev) => ({
+      ...prev,
+      caracteristicasSelecionadas: prev.caracteristicasSelecionadas.filter((id) => id !== option.id),
+    }));
+  };
 
   const openNewModal = () => {
     setEditId(null);
@@ -236,6 +426,15 @@ export function Inventario() {
           valor: item.valor == null ? "" : String(item.valor),
         }))
         : [];
+      const caracteristicasSelecionadas = Array.isArray(detail.caracteristicas)
+        ? detail.caracteristicas.map((id: any) => Number(id)).filter((id: number) => Number.isFinite(id))
+        : [];
+      const metricas = Array.isArray(detail.metricas)
+        ? detail.metricas.map((item: any) => ({
+          id: Number(item.id),
+          valor: item.valor == null ? "" : String(item.valor),
+        }))
+        : [];
       const sustainabilityItems = odsCatalog.length > 0
         ? buildOdsItems(odsCatalog, sustainability)
         : sustainability;
@@ -248,6 +447,8 @@ export function Inventario() {
         segmento: est.segmento,
         status: detail.ativo ? "Ativo" : "Inativo",
         sustentabilidade: sustainabilityItems,
+        caracteristicasSelecionadas,
+        metricas,
       });
       setActiveTab("cadastrais");
       setShowModal(true);
@@ -304,6 +505,11 @@ export function Inventario() {
       id: item.id,
       ativo: item.ativo,
       valor: item.natureza === "quant" ? toNumberOrNull(item.valor) : null,
+    }));
+    payload.caracteristicas = data.caracteristicasSelecionadas;
+    payload.metricas = data.metricas.map((item) => ({
+      id: item.id,
+      valor: toNumberOrNull(item.valor),
     }));
 
     return payload;
@@ -740,7 +946,7 @@ export function Inventario() {
               )}
 
               {activeTab === "infra" && (
-                <div className="space-y-4">
+                <div className="space-y-6">
                   {!formData.segmento && (
                     <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700">
                       Selecione um segmento na aba "Dados Cadastrais" para liberar os campos específicos.
@@ -819,53 +1025,20 @@ export function Inventario() {
                   )}
 
                   {formData.segmento && (
-                    <div>
-                      <h4 className="text-[#0c2340] mb-3">Infraestrutura Disponível</h4>
-                      <div className="grid grid-cols-2 gap-2">
-                        {[
-                          { key: "areaVerde", label: "Área Verde / Jardins" },
-                          { key: "piscina", label: "Piscina" },
-                          { key: "salasEventos", label: "Salas de Eventos" },
-                          { key: "estacionamento", label: "Estacionamento Próprio" },
-                          { key: "wifiCortesia", label: "Wi-Fi Cortesia" },
-                        ].map((item) => (
-                          <CheckboxItem
-                            key={item.key}
-                            label={item.label}
-                            checked={formData[item.key as keyof FormData] as boolean}
-                            onChange={(v) => setFormData({ ...formData, [item.key]: v })}
-                          />
-                        ))}
-                      </div>
-                    </div>
+                    <CatalogTreeEditor
+                      tree={catalogTree}
+                      selectedIds={formData.caracteristicasSelecionadas}
+                      canEdit={true}
+                      canManageOptions={isSuperuser() || isSecretariaAdmin()}
+                      onToggleOption={toggleCaracteristica}
+                      onToggleSectionQuestion={toggleCatalogSectionQuestion}
+                      onCreateOption={createCatalogOption}
+                      onEditOption={editCatalogOption}
+                      onDeleteOption={deleteCatalogOption}
+                      emptyMessage="Nenhum catálogo de infraestrutura disponível para este tipo."
+                      title="Infraestrutura e acessibilidade do banco"
+                    />
                   )}
-                </div>
-              )}
-
-              {activeTab === "acessibilidade" && (
-                <div className="space-y-5">
-                  <div>
-                    <h4 className="text-[#0c2340] mb-3 flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-[#1a6fbf]" />
-                      Acessibilidade
-                    </h4>
-                    <div className="grid grid-cols-2 gap-2">
-                      {[
-                        { key: "banheirosPCD", label: "Banheiros adaptados (PCD)" },
-                        { key: "rampaAcesso", label: "Rampa de acesso" },
-                        { key: "sinalizacaoBraile", label: "Sinalização em Braile" },
-                        { key: "cadeiraRodas", label: "Cadeira de rodas disponível" },
-                      ].map((item) => (
-                        <CheckboxItem
-                          key={item.key}
-                          label={item.label}
-                          checked={formData[item.key as keyof FormData] as boolean}
-                          onChange={(v) => setFormData({ ...formData, [item.key]: v })}
-                        />
-                      ))}
-                    </div>
-                  </div>
-
                   <div>
                     <h4 className="text-[#0c2340] mb-3 flex items-center gap-2">
                       <span className="w-2 h-2 rounded-full bg-emerald-500" />
