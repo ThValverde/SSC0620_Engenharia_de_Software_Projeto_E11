@@ -16,7 +16,7 @@ import { Badge } from "../components/ui/badge";
 import { Pencil, Plus, Search, Trash2, UserCog, UserRoundCheck, Shield } from "lucide-react";
 
 type UserGroup = "Secretaria_Admin" | "Secretaria_Staff";
-type UserRole = "superuser" | UserGroup | "trade";
+type UserRole = "superuser" | UserGroup;
 
 type ManagedUser = {
   id: number;
@@ -56,7 +56,7 @@ function getRole(user: ManagedUser): UserRole {
   if (user.is_superuser) return "superuser";
   if (user.groups.includes("Secretaria_Admin")) return "Secretaria_Admin";
   if (user.groups.includes("Secretaria_Staff")) return "Secretaria_Staff";
-  return "trade";
+  return "Secretaria_Staff";
 }
 
 function roleLabel(role: UserRole) {
@@ -67,8 +67,6 @@ function roleLabel(role: UserRole) {
       return "Administrador OTO";
     case "Secretaria_Staff":
       return "Staff OTO";
-    default:
-      return "Trade";
   }
 }
 
@@ -80,8 +78,6 @@ function roleBadgeClass(role: UserRole) {
       return "bg-blue-100 text-blue-700";
     case "Secretaria_Staff":
       return "bg-violet-100 text-violet-700";
-    default:
-      return "bg-emerald-100 text-emerald-700";
   }
 }
 
@@ -296,7 +292,6 @@ export function UsersPage() {
             <option value="superuser">Superuser Django</option>
             <option value="Secretaria_Admin">Administrador OTO</option>
             <option value="Secretaria_Staff">Staff OTO</option>
-            <option value="trade">Trade</option>
           </select>
           <select
             value={statusFilter}
@@ -430,7 +425,7 @@ export function UsersPage() {
               <Label htmlFor="role">Papel</Label>
               <select
                 id="role"
-                value={form.is_superuser ? "superuser" : form.groups[0] || "trade"}
+                value={form.is_superuser ? "superuser" : form.groups[0] || "Secretaria_Staff"}
                 onChange={(e) => {
                   const value = e.target.value as UserRole;
                   setForm((prev) => ({
@@ -444,7 +439,6 @@ export function UsersPage() {
                 {isSuperuser() && <option value="superuser">Superuser Django</option>}
                 <option value="Secretaria_Admin">Administrador OTO</option>
                 <option value="Secretaria_Staff">Staff OTO</option>
-                <option value="trade">Trade</option>
               </select>
             </div>
             <div className="flex items-center gap-3 pt-7">

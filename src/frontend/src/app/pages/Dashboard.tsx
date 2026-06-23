@@ -441,7 +441,7 @@ export function Dashboard() {
         <div className="flex items-center gap-2 mb-4">
           <Leaf size={18} className="text-emerald-600" />
           <h2 className="text-[#0c2340]">Desempenho Módulo ODS</h2>
-          <span className="ml-2 text-xs text-[#94a3b8] font-normal">Agenda 2030 — indicadores cadastrados no banco</span>
+          <span className="ml-2 text-xs text-[#94a3b8] font-normal">Agenda 2030 — cobertura em Estabelecimentos do inventário</span>
         </div>
 
         <div className="flex gap-4">

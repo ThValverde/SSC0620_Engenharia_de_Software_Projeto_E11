@@ -461,11 +461,18 @@ class DashboardResumoView(APIView):
         total_geral_uhs = total_uhs
         total_geral_leitos = total_leitos
 
+        # ODS é calculado baseado em ESTABELECIMENTOS (não inclui entidades independentes)
+        # pois o foco principal do inventário é o mapeamento de infraestrutura turística
+        estabelecimentos_count = total_estabelecimentos
+        
         ods_payload = []
         palette = ["#1a6fbf", "#16a34a", "#f59e0b", "#8b5cf6", "#0ea5e9", "#ef4444"]
         for index, indicator in enumerate(IndicadorODS.objects.all().order_by('eixo', 'ods', 'id')):
-            positive_count = RegistroODS.objects.filter(indicador=indicator).count()
-            percent = round((positive_count / total_registros * 100)) if total_registros > 0 else 0
+            positive_count = RegistroODS.objects.filter(
+                indicador=indicator,
+                registro__estabelecimento__isnull=False  # Filtra apenas Estabelecimentos
+            ).count()
+            percent = round((positive_count / estabelecimentos_count * 100)) if estabelecimentos_count > 0 else 0
             cor = palette[index % len(palette)]
             ods_payload.append({
                 "titulo": f"ODS {indicator.ods}",
@@ -474,7 +481,7 @@ class DashboardResumoView(APIView):
                 "percent": percent,
                 "data": [
                     {"name": "Com registro", "value": positive_count, "color": cor},
-                    {"name": "Sem registro", "value": max(total_registros - positive_count, 0), "color": "#e2e8f0"},
+                    {"name": "Sem registro", "value": max(estabelecimentos_count - positive_count, 0), "color": "#e2e8f0"},
                 ],
             })
 
