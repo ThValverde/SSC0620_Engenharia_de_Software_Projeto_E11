@@ -153,3 +153,5 @@ REST_USE_JWT = True
 JWT_AUTH_COOKIE = 'jwt-auth'
 JWT_AUTH_REFRESH_COOKIE = 'jwt-refresh'
 JWT_AUTH_HTTPONLY = False
+
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'

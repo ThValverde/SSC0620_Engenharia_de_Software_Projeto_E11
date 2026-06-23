@@ -1,3 +1,4 @@
+from django.contrib.auth.models import User, Group
 from rest_framework import serializers
 
 # Importando os modelos do arquivo models.py da mesma pasta (.)
@@ -24,8 +25,102 @@ from .models import (
     GuiaTurismo,
     RHC,
     GrupoFolclorico,
-    TaxiAplicativo
+    TaxiAplicativo,
+    Estabelecimento,
+    VinculoTrade,
 )
+
+#==========================================
+# 0. SERIALIZERS DE AUTENTICAÇÃO E AUTORIZAÇÃO
+#==========================================
+class CadastroUsuarioHierarquicoSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    password = serializers.CharField(write_only=True)
+    tipo_usuario = serializers.ChoiceField(choices=['adm_oto', 'usuario_oto', 'trade'])
+    
+    # Campos obrigatórios caso o tipo seja 'trade'
+    estabelecimento_id = serializers.IntegerField(required=False, allow_null=True)
+    nivel_permissao = serializers.CharField(required=False, allow_blank=True, default='Operacional')
+
+    def validate_email(self, value):
+        if User.objects.filter(email=value).exists():
+            raise serializers.ValidationError("Este e-mail já está cadastrado no sistema.")
+        return value
+
+    def validate(self, data):
+        request = self.context.get('request')
+        user_logado = request.user
+        tipo_a_criar = data['tipo_usuario']
+
+        # 1. Se quem está tentando cadastrar for o Superuser do Django (Via terminal ou painel admin)
+        if user_logado.is_superuser:
+            # O Superuser tem permissão total para criar qualquer nível
+            return data
+
+        # Mapeamento de grupos do usuário logado
+        is_adm_oto = user_logado.groups.filter(name='Secretaria_Admin').exists()
+        is_user_oto = user_logado.groups.filter(name='Secretaria_Staff').exists()
+
+        # 2. Regra para criar um Administrador do Observatório (Adm OTO)
+        if tipo_a_criar == 'adm_oto':
+            # APENAS o Admin do Django (Superuser) pode criar um Adm OTO
+            if not user_logado.is_superuser:
+                raise serializers.ValidationError(
+                    {"permissao": "Apenas administradores centrais de TI (Superuser Django) podem criar um Administrador do OTO."}
+                )
+
+        # 3. Regra para criar um Usuário do Observatório (Usuário OTO)
+        elif tipo_a_criar == 'usuario_oto':
+            # APENAS Superuser ou Adm OTO podem criar um Usuário OTO comum
+            if not is_adm_oto:
+                raise serializers.ValidationError(
+                    {"permissao": "Você precisa ser um Administrador do OTO para cadastrar um usuário da secretaria."}
+                )
+
+        # 4. Regra para criar um Usuário do Trade (Empresários/Hoteleiros)
+        elif tipo_a_criar == 'trade':
+            # Tanto o Adm OTO quanto o Usuário OTO podem cadastrar o Trade
+            if not is_adm_oto and not is_user_oto:
+                raise serializers.ValidationError(
+                    {"permissao": "Usuários do Trade não possuem permissão para cadastrar outras contas."}
+                )
+            
+            if not data.get('estabelecimento_id'):
+                raise serializers.ValidationError(
+                    {"estabelecimento_id": "É obrigatório vincular este usuário a um estabelecimento do Trade Turístico."}
+                )
+
+        return data
+
+    def create(self, validated_data):
+        email = validated_data['email']
+        password = validated_data['password']
+        tipo_usuario = validated_data['tipo_usuario']
+        
+        # Criação do usuário padrão do Django
+        user = User.objects.create_user(username=email, email=email, password=password)
+
+        if tipo_usuario == 'adm_oto':
+            grupo, _ = Group.objects.get_or_create(name='Secretaria_Admin')
+            user.groups.add(grupo)
+            
+        elif tipo_usuario == 'usuario_oto':
+            grupo, _ = Group.objects.get_or_create(name='Secretaria_Staff')
+            user.groups.add(grupo)
+            
+        elif tipo_usuario == 'trade':
+            est_id = validated_data['estabelecimento_id']
+            nivel = validated_data['nivel_permissao']
+            estabelecimento = Estabelecimento.objects.get(pk=est_id)
+            
+            # Cria o vínculo na tabela intermediária do banco
+            VinculoTrade.objects.create(
+                usuario=user,
+                estabelecimento=estabelecimento,
+                nivel_permissao=nivel
+            )
+
+        return user
 
 # ==========================================
 # 1. SERIALIZERS DE SUPORTE (Aninhados)

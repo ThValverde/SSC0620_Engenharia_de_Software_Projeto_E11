@@ -5,6 +5,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework import status
+from .serializers import CadastroUsuarioHierarquicoSerializer
 
 from .permissions import IsSecretariaOrReadOnly, IsTradeOwnerOrSecretaria
 
@@ -24,6 +25,25 @@ from .serializers import (
     RHCSerializer, GrupoFolcloricoSerializer, TaxiAplicativoSerializer,
     CadastroUsuarioSerializer
 )
+
+# VIEW CADASTRO DE USUÁRIO HIERÁRQUICO (RBAC) =====================
+class CadastrarUsuarioView(APIView):
+    """
+    Endpoint para gerenciamento e criação de contas respeitando a árvore de RBAC.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        # Passar o request no contexto é vital para o serializer saber QUEM está logado
+        serializer = CadastroUsuarioHierarquicoSerializer(data=request.data, context={'request': request})
+        
+        if serializer.is_valid():
+            serializer.save()
+            return Response(
+                {"status": "Sucesso", "mensagem": "Usuário cadastrado com sucesso dentro da árvore de permissões."},
+                status=status.HTTP_201_CREATED
+            )
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 # CLASSES BASE DE SEGURANÇA (DRY)===================

@@ -1,6 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from . import views
+from .views import CadastrarUsuarioView
 
 router = DefaultRouter()
 
@@ -32,4 +33,5 @@ router.register(r'taxis-aplicativos', views.TaxiAplicativoViewSet)
 
 urlpatterns = [
     path('', include(router.urls)),
+    path('auth/cadastrar-usuario/', CadastrarUsuarioView.as_view(), name='api-cadastrar-usuario'),
 ]
