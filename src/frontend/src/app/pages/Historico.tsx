@@ -13,8 +13,11 @@ import {
   GripVertical,
   Hash,
   ImageIcon,
+  Info,
+  List,
   Pencil,
   Plus,
+  LayoutGrid,
   Trash2,
   Upload,
   X,
@@ -103,15 +106,20 @@ function getFileSizeLabel(value: string) {
   return value ? value : "—";
 }
 
+function getSourceKey(item: HistoricoImportacao) {
+  return item.fonte?.trim() || "Sem fonte";
+}
+
 function groupImports(
   imports: HistoricoImportacao[],
   folders: FolderDef[],
   folderMap: Record<string, string | null>,
-  displayTitles: Record<string, string>
+  displayTitles: Record<string, string>,
+  segmentTagsBySource: Record<string, string[]>
 ): SearchCard[] {
   const groups = new Map<string, HistoricoImportacao[]>();
   imports.forEach((item) => {
-    const key = item.fonte?.trim() || "Sem fonte";
+    const key = getSourceKey(item);
     const current = groups.get(key) || [];
     current.push(item);
     groups.set(key, current);
@@ -134,7 +142,7 @@ function groupImports(
         periodo: new Intl.DateTimeFormat("pt-BR", { month: "short", year: "numeric" }).format(
           new Date(sorted[0]?.importado_em ?? new Date().toISOString())
         ),
-        segmentos: Array.from(new Set(sorted.map((item) => item.status_label || labelStatus(item.status)))),
+        segmentos: segmentTagsBySource[sourceKey] ?? [],
         records: sorted.length,
         attachments: sorted.map((item) => ({
           id: String(item.id),
@@ -374,6 +382,8 @@ function SemPastaPill({ count, isSelected, onSelect, onDrop }: SemPastaPillProps
 interface DraggableCardProps {
   card: SearchCard;
   folders: FolderDef[];
+  viewMode: "grid" | "list";
+  attachmentSearch: string;
   onAddAttachment: (sourceKey: string, files: File[]) => void;
   onDeleteAttachment: (attachmentId: string) => void;
   onDelete: (sourceKey: string) => void;
@@ -381,7 +391,17 @@ interface DraggableCardProps {
   onEdit: (card: SearchCard) => void;
 }
 
-function DraggableCard({ card, folders, onAddAttachment, onDeleteAttachment, onDelete, onRenameCard, onEdit }: DraggableCardProps) {
+function DraggableCard({
+  card,
+  folders,
+  viewMode,
+  attachmentSearch,
+  onAddAttachment,
+  onDeleteAttachment,
+  onDelete,
+  onRenameCard,
+  onEdit,
+}: DraggableCardProps) {
   const [{ isDragging }, drag] = useDrag<{ sourceKey: string }, void, { isDragging: boolean }>({
     type: CARD_TYPE,
     item: { sourceKey: card.sourceKey },
@@ -390,6 +410,10 @@ function DraggableCard({ card, folders, onAddAttachment, onDeleteAttachment, onD
 
   const [isFileOver, setIsFileOver] = useState(false);
   const folder = folders.find((f) => f.id === card.folderId);
+  const normalizedAttachmentSearch = attachmentSearch.trim().toLowerCase();
+  const visibleAttachments = normalizedAttachmentSearch
+    ? card.attachments.filter((attachment) => attachment.name.toLowerCase().includes(normalizedAttachmentSearch))
+    : card.attachments;
 
   const processFiles = (files: File[]) => {
     const valid = files.filter((f) =>
@@ -406,6 +430,8 @@ function DraggableCard({ card, folders, onAddAttachment, onDeleteAttachment, onD
     <div
       ref={drag as unknown as React.Ref<HTMLDivElement>}
       className={`bg-white rounded-xl border border-[#e2e8f0] shadow-sm overflow-hidden transition-all ${
+        viewMode === "list" ? "w-full" : ""
+      } ${
         isDragging ? "opacity-50 shadow-xl scale-[0.97] cursor-grabbing" : "hover:shadow-md cursor-grab"
       }`}
     >
@@ -466,11 +492,11 @@ function DraggableCard({ card, folders, onAddAttachment, onDeleteAttachment, onD
         </div>
       </div>
 
-      {card.attachments.length > 0 && (
+      {visibleAttachments.length > 0 && (
         <div className="px-4 py-2.5 bg-[#fafbfc] border-b border-[#f1f5f9]">
           <p className="text-[9px] font-semibold text-[#94a3b8] uppercase tracking-wider mb-1.5">Arquivos Anexados</p>
           <div className="space-y-1.5">
-            {card.attachments.map((att) => (
+            {visibleAttachments.map((att) => (
               <div key={att.id} className="flex items-center gap-2 group">
                 <span className="flex-shrink-0">{fileTypeIcons[att.type]}</span>
                 <a
@@ -711,13 +737,16 @@ function HistoricoContent() {
   const [folders, setFolders] = useState<FolderDef[]>(initialFolders);
   const [imports, setImports] = useState<HistoricoImportacao[]>([]);
   const [viewFilter, setViewFilter] = useState<"all" | "unassigned" | string>("all");
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [addingFolder, setAddingFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
   const [sortOrder, setSortOrder] = useState<SortOrder>("recent");
   const [sortOpen, setSortOpen] = useState(false);
+  const [attachmentSearch, setAttachmentSearch] = useState("");
   const [cardModal, setCardModal] = useState<{ card: Partial<SearchCard> | null } | null>(null);
   const [folderMap, setFolderMap] = useState<Record<string, string | null>>({});
   const [displayTitles, setDisplayTitles] = useState<Record<string, string>>({});
+  const [segmentTagsBySource, setSegmentTagsBySource] = useState<Record<string, string[]>>({});
 
   const load = async () => {
     try {
@@ -757,12 +786,46 @@ function HistoricoContent() {
       });
       return next;
     });
+    setSegmentTagsBySource((prev) => {
+      const next = { ...prev };
+      uniqueSources.forEach((sourceKey) => {
+        if (!next[sourceKey]) next[sourceKey] = [];
+      });
+      Object.keys(next).forEach((key) => {
+        if (!uniqueSources.includes(key)) delete next[key];
+      });
+      return next;
+    });
   }, [imports, folders]);
 
   const cards = useMemo(
-    () => groupImports(imports, folders, folderMap, displayTitles),
-    [imports, folders, folderMap, displayTitles]
+    () => groupImports(imports, folders, folderMap, displayTitles, segmentTagsBySource),
+    [imports, folders, folderMap, displayTitles, segmentTagsBySource]
   );
+
+  const folderItemCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    folders.forEach((folder) => {
+      counts[folder.id] = 0;
+    });
+
+    imports.forEach((item) => {
+      const sourceKey = getSourceKey(item);
+      const folderId = folderMap[sourceKey] ?? null;
+      if (folderId) {
+        counts[folderId] = (counts[folderId] || 0) + 1;
+      }
+    });
+
+    return counts;
+  }, [imports, folderMap, folders]);
+
+  const unassignedItemCount = useMemo(() => {
+    return imports.reduce((total, item) => {
+      const sourceKey = getSourceKey(item);
+      return total + (folderMap[sourceKey] ? 0 : 1);
+    }, 0);
+  }, [imports, folderMap]);
 
   const moveCardToFolder = (sourceKey: string, folderId: string | null) => {
     setFolderMap((prev) => ({ ...prev, [sourceKey]: folderId }));
@@ -795,6 +858,11 @@ function HistoricoContent() {
       return next;
     });
     setDisplayTitles((prev) => {
+      const next = { ...prev };
+      delete next[sourceKey];
+      return next;
+    });
+    setSegmentTagsBySource((prev) => {
       const next = { ...prev };
       delete next[sourceKey];
       return next;
@@ -836,17 +904,20 @@ function HistoricoContent() {
   };
 
   const handleSaveCard = async (data: { title: string; folderId: string | null; segmentos: string[]; files: File[] }) => {
-    if (!data.files.length) {
+    const sourceKey = cardModal?.card?.sourceKey ?? data.title;
+
+    if (!data.files.length && !cardModal?.card?.sourceKey) {
       toast.error("Selecione ao menos um arquivo.");
       return;
     }
 
     try {
       for (const file of data.files) {
-        await apiService.uploadArquivoImportacao(file, data.title);
+        await apiService.uploadArquivoImportacao(file, sourceKey);
       }
-      setFolderMap((prev) => ({ ...prev, [data.title]: data.folderId }));
-      setDisplayTitles((prev) => ({ ...prev, [data.title]: data.title }));
+      setFolderMap((prev) => ({ ...prev, [sourceKey]: data.folderId }));
+      setDisplayTitles((prev) => ({ ...prev, [sourceKey]: data.title }));
+      setSegmentTagsBySource((prev) => ({ ...prev, [sourceKey]: data.segmentos }));
       await load();
       setCardModal(null);
     } catch (error) {
@@ -866,6 +937,17 @@ function HistoricoContent() {
     return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
   });
 
+  const searchedCards = useMemo(() => {
+    const term = attachmentSearch.trim().toLowerCase();
+    if (!term) return filteredCards;
+    return filteredCards.filter((card) => {
+      const haystack = [card.title, card.sourceKey, ...card.attachments.map((attachment) => attachment.name)]
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(term);
+    });
+  }, [filteredCards, attachmentSearch]);
+
   const selectedFolderDef = folders.find((folder) => folder.id === viewFilter);
 
   return (
@@ -878,7 +960,7 @@ function HistoricoContent() {
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 text-sm text-[#94a3b8]">
             <FolderOpen size={16} />
-            <span>{cards.length} buscas · {folders.length} pastas</span>
+            <span>{imports.length} itens · {folders.length} pastas</span>
           </div>
 
           <div className="relative">
@@ -919,6 +1001,41 @@ function HistoricoContent() {
             )}
           </div>
 
+          <div className="flex items-center rounded-lg border border-[#e2e8f0] bg-white p-1 shadow-sm">
+            <button
+              type="button"
+              onClick={() => setViewMode("grid")}
+              className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors ${
+                viewMode === "grid" ? "bg-[#eff6ff] text-[#1a6fbf]" : "text-[#64748b] hover:bg-[#f8fafc]"
+              }`}
+              aria-label="Visualização em grade"
+            >
+              <LayoutGrid size={14} />
+              Grade
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("list")}
+              className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors ${
+                viewMode === "list" ? "bg-[#eff6ff] text-[#1a6fbf]" : "text-[#64748b] hover:bg-[#f8fafc]"
+              }`}
+              aria-label="Visualização em lista"
+            >
+              <List size={14} />
+              Lista
+            </button>
+          </div>
+
+          <div className="min-w-[260px]">
+            <input
+              type="text"
+              value={attachmentSearch}
+              onChange={(e) => setAttachmentSearch(e.target.value)}
+              placeholder="Buscar por nome do anexo..."
+              className="w-full rounded-lg border border-[#e2e8f0] bg-white px-3 py-2 text-sm text-[#334155] shadow-sm outline-none focus:border-[#1a6fbf]"
+            />
+          </div>
+
           <button
             onClick={() => setCardModal({ card: null })}
             className="flex items-center gap-2 px-4 py-2 bg-[#1a6fbf] hover:bg-[#1560a8] text-white text-sm rounded-lg shadow-sm transition-colors"
@@ -929,13 +1046,22 @@ function HistoricoContent() {
         </div>
       </div>
 
-      <div className="bg-[#eff6ff] border border-[#bfdbfe] rounded-xl px-4 py-2.5 flex items-center gap-2.5">
-        <div className="w-6 h-6 bg-[#1a6fbf] rounded-md flex items-center justify-center flex-shrink-0">
-          <GripVertical size={13} className="text-white" />
+      <div className="flex justify-end">
+        <div className="group relative inline-flex">
+          <button
+            type="button"
+            className="flex h-8 w-8 items-center justify-center rounded-full border border-[#bfdbfe] bg-[#eff6ff] text-[#1a6fbf] shadow-sm"
+            aria-label="Informações sobre arrastar e soltar"
+          >
+            <Info size={14} />
+          </button>
+          <div className="pointer-events-none absolute right-0 top-full z-30 mt-2 hidden w-80 rounded-xl border border-[#bfdbfe] bg-white p-3 text-xs text-[#334155] shadow-xl group-hover:block">
+            <p className="font-medium text-[#1e40af]">Drag & Drop</p>
+            <p className="mt-1 leading-relaxed">
+              Arraste um cartão para uma pasta para organizar os arquivos. Solte em “Sem Pasta” para remover a associação.
+            </p>
+          </div>
         </div>
-        <p className="text-xs text-[#3b82f6]">
-          <strong>Drag & Drop:</strong> Arraste um cartão e solte sobre uma pasta para organizá-lo. Solte sobre "Sem Pasta" para remover de uma pasta.
-        </p>
       </div>
 
       <div className="space-y-2.5">
@@ -971,7 +1097,7 @@ function HistoricoContent() {
           </button>
 
           <SemPastaPill
-            count={cards.filter((card) => !card.folderId).length}
+            count={unassignedItemCount}
             isSelected={viewFilter === "unassigned"}
             onSelect={() => setViewFilter(viewFilter === "unassigned" ? "all" : "unassigned")}
             onDrop={(sourceKey) => moveCardToFolder(sourceKey, null)}
@@ -981,7 +1107,7 @@ function HistoricoContent() {
             <FolderPill
               key={folder.id}
               folder={folder}
-              cardCount={cards.filter((card) => card.folderId === folder.id).length}
+              cardCount={folderItemCounts[folder.id] || 0}
               isSelected={viewFilter === folder.id}
               onSelect={() => setViewFilter(viewFilter === folder.id ? "all" : folder.id)}
               onDrop={moveCardToFolder}
@@ -1041,12 +1167,14 @@ function HistoricoContent() {
         </div>
       )}
 
-      <div className="grid grid-cols-3 gap-4">
-        {filteredCards.map((card) => (
+      <div className={viewMode === "grid" ? "grid grid-cols-3 gap-4" : "space-y-3"}>
+        {searchedCards.map((card) => (
           <DraggableCard
             key={card.sourceKey}
             card={card}
             folders={folders}
+            viewMode={viewMode}
+            attachmentSearch={attachmentSearch}
             onAddAttachment={handleAddAttachment}
             onDeleteAttachment={handleDeleteAttachment}
             onDelete={handleDeleteCard}
@@ -1055,8 +1183,12 @@ function HistoricoContent() {
           />
         ))}
 
-        {filteredCards.length === 0 && (
-          <div className="col-span-3 bg-white rounded-xl border border-dashed border-[#e2e8f0] flex flex-col items-center justify-center py-16">
+        {searchedCards.length === 0 && (
+          <div
+            className={`bg-white rounded-xl border border-dashed border-[#e2e8f0] flex flex-col items-center justify-center py-16 ${
+              viewMode === "grid" ? "col-span-3" : ""
+            }`}
+          >
             <FolderOpen size={36} className="text-[#cbd5e1] mb-3" />
             <p className="text-[#64748b] text-sm">Nenhuma busca nesta pasta.</p>
             <p className="text-[#94a3b8] text-xs mt-1">Arraste um cartão de outra pasta ou envie um novo anexo.</p>
