@@ -1,34 +1,45 @@
-import { Navigate, Outlet } from 'react-router';
+import { Navigate } from 'react-router';
 import { useAuth } from '../contexts/AuthContext';
+import React from 'react';
 
-export function ProtectedRoute() {
-  const { user, isAuthenticated } = useAuth();
-
-  // 1. Se não tiver usuário no contexto, expulsa pro login
-  if (!isAuthenticated || !user) {
-    return <Navigate to="/login" replace />;
-  }
-
-  // 2. RBAC: Verifica se o usuário pertence à Secretaria
-  const isSecretaria = 
-    user.is_superuser || 
-    (user.groups && (user.groups.includes('Secretaria_Admin') || user.groups.includes('Secretaria_Staff')));
-
-  // 3. Se for da Secretaria (Superuser ou Admin/Staff OTO), libera o Dashboard
-  if (isSecretaria) {
-    return <Outlet />;
-  }
-
-  // 4. Se passou por aqui e não é da secretaria, é do Trade! 
-  // Tranca ele na visão do empresário.
-  return <Navigate to="/portal-trade" replace />;
+interface ProtectedRouteProps {
+  children: React.JSX.Element;
+  allowedRoles?: string[];
 }
 
-export function SmartRedirectRoute() {
+export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
   const { user, isAuthenticated, isLoading } = useAuth();
 
   if (isLoading) {
-    return <div>Carregando...</div>;
+    return <div className="p-6 text-[#64748b]">Verificando permissões...</div>;
+  }
+
+  if (!isAuthenticated || !user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (allowedRoles && allowedRoles.length > 0) {
+    const hasPermission = 
+      user.is_superuser || 
+      (Array.isArray(user.groups) && user.groups.some(role => allowedRoles.includes(role)));
+
+    if (!hasPermission) {
+      return <Navigate to="/portal-trade" replace />;
+    }
+  }
+
+  return children;
+}
+
+interface SmartRedirectRouteProps {
+  children?: React.ReactNode; 
+}
+
+export function SmartRedirectRoute({ children }: SmartRedirectRouteProps) {
+  const { user, isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) {
+    return <div className="p-6 text-[#64748b]">Carregando portal...</div>;
   }
 
   if (!isAuthenticated || !user) {
@@ -37,13 +48,11 @@ export function SmartRedirectRoute() {
 
   const isSecretaria = 
     user.is_superuser || 
-    (user.groups && (user.groups.includes('Secretaria_Admin') || user.groups.includes('Secretaria_Staff')));
+    (Array.isArray(user.groups) && (user.groups.includes('Secretaria_Admin') || user.groups.includes('Secretaria_Staff')));
 
-  // Se for da secretaria, redireciona para a página principal deles
   if (isSecretaria) {
     return <Navigate to="/dashboard" replace />; 
   }
 
-  // Se for do Trade, redireciona para o portal deles
   return <Navigate to="/portal-trade" replace />;
 }

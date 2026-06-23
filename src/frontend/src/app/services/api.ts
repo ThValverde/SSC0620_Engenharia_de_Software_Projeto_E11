@@ -24,10 +24,74 @@ interface LoginResponse {
   user: User;
 }
 
+interface InventoryEndpointPayload {
+  razao_social: string;
+  nome_fantasia: string;
+  cnpj?: string;
+  ativo: boolean;
+  [key: string]: string | number | boolean | null | undefined;
+}
+
 class ApiService {
   private api: AxiosInstance;
   private refreshTokenRequest: Promise<string> | null = null;
+  
+  async getDashboardResumo(): Promise<any> {
+    try {
+      const response = await this.api.get('/inventario/dashboard/resumo/');
+      return response.data;
+    } catch (error) {
+      console.error("Erro ao buscar resumo do dashboard:", error);
+      throw error;
+    }
+  }
 
+  async listInventory(endpoint: string): Promise<any[]> {
+    const response = await this.api.get(`/inventario/${endpoint}/`);
+    const data = response.data;
+    return Array.isArray(data) ? data : (data?.results ?? []);
+  }
+
+  async createInventory(endpoint: string, payload: InventoryEndpointPayload): Promise<any> {
+    try {
+      const response = await this.api.post(`/inventario/${endpoint}/`, payload);
+      toast.success('Estabelecimento criado com sucesso');
+      return response.data;
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        const message = error.response?.data?.detail || 'Erro ao criar estabelecimento';
+        toast.error(message);
+      }
+      throw error;
+    }
+  }
+
+  async updateInventory(endpoint: string, id: number, payload: Partial<InventoryEndpointPayload>): Promise<any> {
+    try {
+      const response = await this.api.patch(`/inventario/${endpoint}/${id}/`, payload);
+      toast.success('Estabelecimento atualizado com sucesso');
+      return response.data;
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        const message = error.response?.data?.detail || 'Erro ao atualizar estabelecimento';
+        toast.error(message);
+      }
+      throw error;
+    }
+  }
+
+  async deleteInventory(endpoint: string, id: number): Promise<void> {
+    try {
+      await this.api.delete(`/inventario/${endpoint}/${id}/`);
+      toast.success('Estabelecimento removido com sucesso');
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        const message = error.response?.data?.detail || 'Erro ao remover estabelecimento';
+        toast.error(message);
+      }
+      throw error;
+    }
+  }
   constructor() {
     this.api = axios.create({
       baseURL: API_BASE_URL,
@@ -67,7 +131,7 @@ class ApiService {
             return this.api(originalRequest);
           } catch (refreshError) {
             this.clearTokens();
-            window.location.href = '/login';
+            // window.location.href = '/login';
             return Promise.reject(refreshError);
           }
         }
@@ -107,27 +171,45 @@ class ApiService {
   // Auth endpoints
 async login(email: string, password: string): Promise<LoginResponse> {
     try {
-      const response = await this.api.post<LoginResponse>('/auth/login/', {
+      // Usamos <any> aqui para permitir a desestruturação segura mais abaixo
+      const response = await this.api.post<any>('/auth/login/', {
         username: email,
         password,
       });
       
-      // Agora usamos os dados reais que o backend vai mandar corretamente
-      const { access, refresh, user } = response.data;
+      const { access, refresh, user: rawUser } = response.data;
+      
+      // PROTEÇÃO: Garantimos que o objeto 'user' tem a estrutura exata 
+      // que o nosso AuthContext e ProtectedRoute esperam, evitando a Tela Branca.
+      const safeUser: User = {
+        id: rawUser?.id || rawUser?.pk || 0,
+        email: rawUser?.email || email,
+        username: rawUser?.username || email,
+        is_superuser: !!rawUser?.is_superuser,
+        // Garantimos que groups é SEMPRE um array, mesmo que o backend não envie
+        groups: Array.isArray(rawUser?.groups) ? rawUser.groups : [],
+        first_name: rawUser?.first_name || '',
+        last_name: rawUser?.last_name || ''
+      };
       
       this.setAccessToken(access);
       this.setRefreshToken(refresh);
-      this.setUser(user);
+      this.setUser(safeUser);
 
-      return response.data;
+      return {
+        access,
+        refresh,
+        user: safeUser
+      };
+      
     } catch (error) {
       if (axios.isAxiosError(error)) {
-        toast.error(error.response?.data?.detail || 'Falha no login');
+        toast.error(error.response?.data?.detail || 'Credenciais inválidas ou erro no servidor.');
       }
       throw error;
     }
   }
-
+  
   async logout(): Promise<void> {
     this.clearTokens();
   }
@@ -168,7 +250,8 @@ async login(email: string, password: string): Promise<LoginResponse> {
 
   async listUsers(): Promise<User[]> {
     const response = await this.api.get<User[]>('/users/');
-    return response.data;
+    const data = response.data as any;
+    return Array.isArray(data) ? data : (data?.results ?? []);
   }
 
   async deleteUser(userId: number): Promise<void> {

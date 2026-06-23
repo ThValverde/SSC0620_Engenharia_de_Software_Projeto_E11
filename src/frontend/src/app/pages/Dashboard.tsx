@@ -1,11 +1,11 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
+import { useAuth } from "../contexts/AuthContext";
+import { apiService } from "../services/api";
 import {
   Building2, BedDouble, Shield, Users, TrendingUp,
   Calendar, ChevronDown, CheckCircle2, AlertTriangle,
   Home, Layers, Leaf, Accessibility, Zap, Recycle,
   Briefcase, Database, Clock, Hotel, KeyRound,
-  Plus, Upload, Edit3, Trash2, FileCheck, UserPlus,
-  Lock, ChevronRight, PanelRightOpen,
 } from "lucide-react";
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
@@ -34,97 +34,6 @@ const DADOS_ATUAIS = {
       data: [{ name: "Com Plano", value: 35, color: "#8b5cf6" }, { name: "Sem Plano", value: 277, color: "#e2e8f0" }] },
   ],
 };
-
-// ─── Activity Feed (Admin) ────────────────────────────────────────────────────
-
-type FeedItem = {
-  id: number;
-  icon: React.ElementType;
-  iconBg: string;
-  iconColor: string;
-  title: string;
-  detail: string;
-  tempo: string;
-  tipo: "new" | "upload" | "edit" | "delete" | "verify" | "user";
-};
-
-const FEED_ITEMS: FeedItem[] = [
-  { id: 1, icon: Plus, iconBg: "bg-emerald-50", iconColor: "text-emerald-600", title: "Novo estabelecimento cadastrado", detail: "Hotel Thermas Palace", tempo: "Há 10 min", tipo: "new" },
-  { id: 2, icon: Upload, iconBg: "bg-blue-50", iconColor: "text-[#1a6fbf]", title: "Planilha importada com sucesso", detail: "Novo CAGED — Jun/2026", tempo: "Há 2 horas", tipo: "upload" },
-  { id: 3, icon: Edit3, iconBg: "bg-amber-50", iconColor: "text-amber-600", title: "Dados atualizados pelo trade", detail: "Pousada Brisa das Águas — leitos: 45", tempo: "Há 3 horas", tipo: "edit" },
-  { id: 4, icon: FileCheck, iconBg: "bg-violet-50", iconColor: "text-violet-600", title: "CADASTUR regularizado", detail: "Restaurante Sabores do Cerrado", tempo: "Há 5 horas", tipo: "verify" },
-  { id: 5, icon: UserPlus, iconBg: "bg-cyan-50", iconColor: "text-cyan-600", title: "Novo usuário do Portal do Trade", detail: "Olímpia City Tours — operador", tempo: "Há 7 horas", tipo: "user" },
-  { id: 6, icon: Upload, iconBg: "bg-blue-50", iconColor: "text-[#1a6fbf]", title: "Importação de dados concluída", detail: "RAIS Turismo 2025 — 312 registros", tempo: "Ontem, 16:42", tipo: "upload" },
-  { id: 7, icon: Edit3, iconBg: "bg-amber-50", iconColor: "text-amber-600", title: "Infraestrutura atualizada", detail: "Hot Park — capacidade diária", tempo: "Ontem, 14:15", tipo: "edit" },
-  { id: 8, icon: Plus, iconBg: "bg-emerald-50", iconColor: "text-emerald-600", title: "Novo atrativo cadastrado", detail: "Vale dos Dinossauros — expansão", tempo: "Ontem, 11:03", tipo: "new" },
-  { id: 9, icon: Trash2, iconBg: "bg-red-50", iconColor: "text-red-500", title: "Registro duplicado removido", detail: "Hotel Marupiara — entrada duplicada", tempo: "Há 2 dias", tipo: "delete" },
-  { id: 10, icon: FileCheck, iconBg: "bg-violet-50", iconColor: "text-violet-600", title: "Laudo de acessibilidade anexado", detail: "Thermas dos Laranjais", tempo: "Há 2 dias", tipo: "verify" },
-  { id: 11, icon: Upload, iconBg: "bg-blue-50", iconColor: "text-[#1a6fbf]", title: "Relatório ODS exportado", detail: "Módulo Sustentabilidade — Jun/2026", tempo: "Há 3 dias", tipo: "upload" },
-  { id: 12, icon: UserPlus, iconBg: "bg-cyan-50", iconColor: "text-cyan-600", title: "Acesso concedido ao Portal", detail: "Secretaria Municipal de Turismo", tempo: "Há 3 dias", tipo: "user" },
-];
-
-function AdminFeedPanel({ onHide }: { onHide: () => void }) {
-  return (
-    <aside className="w-72 flex-shrink-0 flex flex-col bg-white border-l border-[#e2e8f0] sticky top-0 h-screen">
-      {/* Cabeçalho do painel */}
-      <div className="px-4 pt-5 pb-4 border-b border-[#f1f5f9]">
-        <div className="flex items-center gap-2 mb-1">
-          <Lock size={14} className="text-[#0c2340]" />
-          <h3 className="text-[#0c2340] text-sm">Atividades Recentes</h3>
-          <span className="ml-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#0c2340] text-white text-[9px] font-semibold tracking-wide">
-            <Lock size={8} />
-            ADMIN
-          </span>
-          <button
-            onClick={onHide}
-            title="Ocultar painel"
-            className="ml-auto p-1.5 rounded-lg text-[#94a3b8] hover:text-[#334155] hover:bg-[#f1f5f9] transition-colors"
-          >
-            <ChevronRight size={14} />
-          </button>
-        </div>
-        <p className="text-[#94a3b8] text-[11px]">Últimas ações registradas no sistema</p>
-      </div>
-
-      {/* Lista de eventos — scroll independente */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="px-4 py-3 space-y-0">
-          {FEED_ITEMS.map((item, idx) => {
-            const Icon = item.icon;
-            const isLast = idx === FEED_ITEMS.length - 1;
-            return (
-              <div key={item.id} className="relative flex gap-3 pb-4">
-                {/* Linha vertical da timeline */}
-                {!isLast && (
-                  <div className="absolute left-4 top-8 bottom-0 w-px bg-[#f1f5f9]" />
-                )}
-
-                {/* Ícone */}
-                <div className={`w-8 h-8 rounded-lg ${item.iconBg} flex items-center justify-center flex-shrink-0 z-10`}>
-                  <Icon size={14} className={item.iconColor} />
-                </div>
-
-                {/* Conteúdo */}
-                <div className="flex-1 min-w-0 pt-0.5">
-                  <p className="text-xs font-semibold text-[#334155] leading-tight">{item.title}</p>
-                  <p className="text-[11px] text-[#64748b] mt-0.5 leading-tight truncate">{item.detail}</p>
-                  <p className="text-[10px] text-[#94a3b8] mt-1">{item.tempo}</p>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Rodapé */}
-      <div className="px-4 py-3 border-t border-[#f1f5f9] bg-[#f8fafc]">
-        <button className="w-full text-xs text-[#1a6fbf] font-semibold hover:underline text-center">
-          Ver log completo do sistema →
-        </button>
-      </div>
-    </aside>
-  );
-}
 
 // ─── Componente de Donut pequeno para CADASTUR ─────────────────────────────────
 
@@ -221,14 +130,53 @@ function OdsDonut({
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 
 export function Dashboard() {
-  const snap = DADOS_ATUAIS;
-  const [feedVisible, setFeedVisible] = React.useState(true);
+  const { user, isLoading } = useAuth();
+
+  // 1. Criamos um estado para guardar os dados reais
+  const [dashboardData, setDashboardData] = useState<any>(null);
+  const [loadingData, setLoadingData] = useState(true);
+
+  // 2. Quando a tela abre, pedimos os dados à API
+  useEffect(() => {
+    const fetchDashboard = async () => {
+      try {
+        const data = await apiService.getDashboardResumo();
+        setDashboardData(data); // Guarda os dados reais no estado!
+      } catch (error) {
+        console.error("Backend inacessível. Mantendo dados falsos (mock).", error);
+        setDashboardData(DADOS_ATUAIS); // Plano B (segurança)
+      } finally {
+        setLoadingData(false); // Esconde a ampulheta
+      }
+    };
+
+    // Só pede os dados se o utilizador já tiver passado pelo AuthContext
+    if (!isLoading && user) {
+      fetchDashboard();
+    }
+  }, [user, isLoading]);
+
+  // 3. Ecrãs de Carregamento (Loading States)
+  if (isLoading) {
+    return <div className="p-10 text-[#64748b]">Verificando acessos...</div>;
+  }
+
+  if (loadingData) {
+    return (
+      <div className="p-10 flex flex-col items-center justify-center gap-4 mt-20">
+        <div className="w-8 h-8 border-4 border-[#1a6fbf] border-t-transparent rounded-full animate-spin"></div>
+        <p className="text-[#64748b] font-medium animate-pulse">Carregando estatísticas ao vivo de Olímpia...</p>
+      </div>
+    );
+  }
+
+  if (!user) return null;
+
+  // 4. A MÁGICA: Em vez de usar DADOS_ATUAIS estáticos, usamos o estado 'dashboardData'
+  const snap = dashboardData;
 
   return (
-    <div className="flex items-start">
-      {/* ── Área central de conteúdo ──── */}
-      <div className="flex-1 min-w-0">
-      <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6">
 
       {/* ══════════════════════════════════════════════════════════
           BLOCO 0 — Cabeçalho de página
@@ -518,25 +466,6 @@ export function Dashboard() {
         </div>
       </div>
 
-      </div>{/* fim p-6 space-y-6 */}
-      </div>{/* fim área central flex-1 */}
-
-      {/* ── Painel lateral direito (Admin Feed) ──── */}
-      {feedVisible ? (
-        <AdminFeedPanel onHide={() => setFeedVisible(false)} />
-      ) : (
-        <button
-          onClick={() => setFeedVisible(true)}
-          title="Exibir atividades recentes"
-          className="flex-shrink-0 sticky top-0 h-screen w-10 flex flex-col items-center justify-center gap-3 bg-white border-l border-[#e2e8f0] text-[#94a3b8] hover:text-[#1a6fbf] hover:bg-blue-50 transition-colors group"
-        >
-          <PanelRightOpen size={16} className="group-hover:text-[#1a6fbf]" />
-          <span className="text-[9px] font-semibold tracking-widest uppercase text-[#94a3b8] group-hover:text-[#1a6fbf]" style={{ writingMode: "vertical-rl", transform: "rotate(180deg)" }}>
-            Atividades
-          </span>
-        </button>
-      )}
     </div>
   );
 }
-

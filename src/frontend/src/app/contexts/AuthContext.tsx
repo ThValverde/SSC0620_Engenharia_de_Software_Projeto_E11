@@ -38,21 +38,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   // Initialize from localStorage or verify token
-  useEffect(() => {
+useEffect(() => {
     const initAuth = async () => {
       try {
-        if (apiService.isAuthenticated()) {
-          const currentUser = apiService.getCurrentUser();
-          if (currentUser) {
-            setUser(currentUser);
-          } else {
-            // Try to fetch fresh user data
-            const userData = await apiService.getUser();
-            setUser(userData);
-          }
+        const token = apiService.isAuthenticated();
+        if (token) {
+          // Em vez de verificar no localStorage, busque SEMPRE o dado atualizado do user
+          // Isso garante que o dashboard sempre tenha dados reais.
+          const userData = await apiService.getUser();
+          setUser(userData);
         }
       } catch (error) {
-        console.error('Failed to initialize auth:', error);
+        console.warn('Sessão expirada ou inválida, forçando login.');
         apiService.logout();
       } finally {
         setIsLoading(false);
@@ -78,14 +75,15 @@ const login = async (email: string, password: string): Promise<void> => {
   };
 
   // RBAC Helper Methods
-  const hasRole = (role: string): boolean => {
+const hasRole = (role: string): boolean => {
     if (!user) return false;
-    if (role === 'superuser') return user.is_superuser;
-    return user.groups.includes(role);
+    if (role === 'superuser') return !!user.is_superuser;
+    return Array.isArray(user.groups) && user.groups.includes(role);
   };
 
   const hasGroup = (group: string): boolean => {
-    return user?.groups.includes(group) ?? false;
+    if (!user || !Array.isArray(user.groups)) return false;
+    return user.groups.includes(group);
   };
 
   const isSuperuser = (): boolean => user?.is_superuser ?? false;
@@ -130,9 +128,9 @@ const login = async (email: string, password: string): Promise<void> => {
   const canAccessModule = (module: 'users' | 'inventory' | 'import' | 'crossing' | 'history' | 'portal'): boolean => {
     if (!user) return false;
 
-    // User management: only admins and staff can access (not Trade users)
+    // User management: only superuser or Secretaria_Admin can access
     if (module === 'users') {
-      return !isTradeUser();
+      return isSuperuser() || isSecretariaAdmin();
     }
 
     // Trade users can only access portal

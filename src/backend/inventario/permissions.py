@@ -41,3 +41,15 @@ class IsTradeOwnerOrSecretaria(permissions.BasePermission):
             usuario=request.user, 
             estabelecimento_id=obj.pk
         ).exists()
+
+
+class IsSuperuserOrSecretariaAdmin(permissions.BasePermission):
+    """
+    Gestão de usuários: apenas superuser Django ou membros do grupo Secretaria_Admin.
+    """
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+
+        return request.user.is_superuser or request.user.groups.filter(name='Secretaria_Admin').exists()

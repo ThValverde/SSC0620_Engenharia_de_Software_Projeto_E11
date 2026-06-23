@@ -7,6 +7,7 @@ from .models import (
     Contato,
     RedeSocial,
     Pagamento,
+    EscopoCatalogo,
     Caracteristica,       
     CaracteristicaValor,  
     IndicadorODS,         
@@ -132,6 +133,80 @@ class CustomUserDetailsSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ('id', 'username', 'email', 'is_superuser', 'groups', 'first_name', 'last_name')
+
+
+class UserAdminSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True, required=False, allow_blank=False)
+    groups = serializers.SlugRelatedField(
+        many=True,
+        slug_field='name',
+        queryset=Group.objects.all(),
+        required=False,
+    )
+
+    class Meta:
+        model = User
+        fields = (
+            'id',
+            'username',
+            'email',
+            'first_name',
+            'last_name',
+            'is_active',
+            'is_staff',
+            'is_superuser',
+            'groups',
+            'password',
+        )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        Group.objects.get_or_create(name='Secretaria_Admin')
+        Group.objects.get_or_create(name='Secretaria_Staff')
+
+    def validate(self, data):
+        request = self.context.get('request')
+        if request and request.user and request.user.is_authenticated:
+            if not request.user.is_superuser and data.get('is_superuser'):
+                raise serializers.ValidationError({
+                    'is_superuser': 'Somente o superuser Django pode criar contas superuser.'
+                })
+        return data
+
+    def create(self, validated_data):
+        password = validated_data.pop('password', None)
+        groups = validated_data.pop('groups', [])
+
+        user = User(**validated_data)
+        if password:
+            user.set_password(password)
+        else:
+            user.set_unusable_password()
+
+        user.save()
+        user.groups.set(groups)
+        user.is_staff = user.is_superuser or user.groups.filter(name__in=['Secretaria_Admin', 'Secretaria_Staff']).exists()
+        user.save(update_fields=['is_staff'])
+        return user
+
+    def update(self, instance, validated_data):
+        password = validated_data.pop('password', None)
+        groups = validated_data.pop('groups', None)
+
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+
+        if password:
+            instance.set_password(password)
+
+        instance.save()
+
+        if groups is not None:
+            instance.groups.set(groups)
+
+        instance.is_staff = instance.is_superuser or instance.groups.filter(name__in=['Secretaria_Admin', 'Secretaria_Staff']).exists()
+        instance.save(update_fields=['is_staff'])
+        return instance
 
 # ==========================================
 # 1. SERIALIZERS DE SUPORTE (Aninhados)

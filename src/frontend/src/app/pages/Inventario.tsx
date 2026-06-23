@@ -1,9 +1,11 @@
 import { useState, useEffect } from "react";
+import { toast } from "sonner";
 import {
   Plus, Search, Pencil, Trash2, X, ChevronDown,
   CheckCircle2, XCircle, Filter, Download,
-  FileText, Building, Leaf, Shield,
+  FileText, Building, Leaf,
 } from "lucide-react";
+import { apiService } from "../services/api";
 
 type Segmento =
   | "Meio de Hospedagem"
@@ -15,6 +17,7 @@ type Segmento =
 
 interface Estabelecimento {
   id: number;
+  endpoint: string;
   razaoSocial: string;
   nomeFantasia: string;
   segmento: Segmento;
@@ -40,7 +43,7 @@ const segmentoColors: Record<Segmento, string> = {
   "Transporte Turístico": "bg-orange-100 text-orange-700",
 };
 
-const segmentMapping: Record<string, string> = {
+const segmentMapping: Record<Segmento, string> = {
   "Meio de Hospedagem": "hospedagens",
   "Atrativo Turístico": "atrativos",
   "Alimentação": "alimentacao",
@@ -48,6 +51,14 @@ const segmentMapping: Record<string, string> = {
   "Agência de Viagem": "agencias",
   "Transporte Turístico": "locadoras-transporte",
 };
+
+const endpointToSegment = Object.entries(segmentMapping).reduce(
+  (acc, [segmento, endpoint]) => {
+    acc[endpoint] = segmento as Segmento;
+    return acc;
+  },
+  {} as Record<string, Segmento>
+);
 
 interface FormData {
   razaoSocial: string;
@@ -99,8 +110,6 @@ const tabs: { key: TabKey; label: string; icon: typeof FileText }[] = [
 ];
 
 export function Inventario() {
-  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
-  
   const [dados, setDados] = useState<Estabelecimento[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -108,60 +117,41 @@ export function Inventario() {
   const [filterStatus, setFilterStatus] = useState("Todos");
   const [showModal, setShowModal] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
+  const [editingEndpoint, setEditingEndpoint] = useState<string | null>(null);
   const [formData, setFormData] = useState<FormData>(emptyForm);
   const [activeTab, setActiveTab] = useState<TabKey>("cadastrais");
   const [deleteConfirm, setDeleteConfirm] = useState<Estabelecimento | null>(null);
-
-  const [modoAdmin, setModoAdmin] = useState(false);
-
-  const getAuthHeaders = () => {
-    const token = localStorage.getItem("access_token");
-    return {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    };
-  };
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchInventario = async () => {
       try {
         setIsLoading(true);
-        const headers = getAuthHeaders();
-        
-        // Dispara requisições GET simultâneas para todas as sub-rotas do Django
+        setLoadError(null);
+
         const endpoints = Object.values(segmentMapping);
-        const promises = endpoints.map(endpoint => 
-          fetch(`${API_URL}/inventario/${endpoint}/`, { headers })
-            .then(res => res.ok ? res.json() : [])
+        const results = await Promise.all(
+          endpoints.map(async (endpoint) => {
+            const items = await apiService.listInventory(endpoint);
+            const segmento = endpointToSegment[endpoint];
+
+            return items.map((item: any) => ({
+              id: Number(item.id),
+              endpoint,
+              razaoSocial: item.razao_social || item.razaoSocial || "",
+              nomeFantasia: item.nome_fantasia || item.nomeFantasia || item.razao_social || "",
+              segmento,
+              cnpj: item.cnpj || item.cnpj_cpf || "",
+              status: item.ativo ? "Ativo" : "Inativo",
+            }));
+          })
         );
-        
-        const results = await Promise.all(promises);
-        let todosDados: Estabelecimento[] = [];
-        
-        // Junta os resultados de todas as rotas numa única lista para a tabela
-        results.forEach((data, index) => {
-           const items = data.results || data; 
-           if (Array.isArray(items)) {
-              const endpointName = endpoints[index];
-              const segmentoOriginal = Object.keys(segmentMapping).find(
-                key => segmentMapping[key] === endpointName
-              ) as Segmento;
-              
-              const formatados = items.map((item: any) => ({
-                id: item.id,
-                razaoSocial: item.razao_social || item.razaoSocial || "",
-                nomeFantasia: item.nome_fantasia || item.nomeFantasia || "",
-                segmento: item.segmento || segmentoOriginal,
-                cnpj: item.cnpj || item.cnpj_cpf || "",
-                status: item.ativo ? "Ativo" : "Inativo"
-              }));
-              todosDados = [...todosDados, ...formatados];
-           }
-        });
-        
-        setDados(todosDados);
+
+        setDados(results.flat());
       } catch (error) {
         console.error("Erro de rede:", error);
+        setLoadError("Não foi possível carregar os estabelecimentos do backend.");
+        toast.error("Falha ao carregar o inventário.");
       } finally {
         setIsLoading(false);
       }
@@ -182,6 +172,7 @@ export function Inventario() {
 
   const openNewModal = () => {
     setEditId(null);
+    setEditingEndpoint(null);
     setFormData(emptyForm);
     setActiveTab("cadastrais");
     setShowModal(true);
@@ -189,6 +180,7 @@ export function Inventario() {
 
   const openEditModal = (est: Estabelecimento) => {
     setEditId(est.id);
+    setEditingEndpoint(est.endpoint);
     setFormData({
       ...emptyForm,
       razaoSocial: est.razaoSocial,
@@ -201,84 +193,100 @@ export function Inventario() {
     setShowModal(true);
   };
 
+  const buildPayload = (data: FormData) => {
+    const payload: Record<string, string | number | boolean | null> = {
+      razao_social: data.razaoSocial,
+      nome_fantasia: data.nomeFantasia || data.razaoSocial,
+      cnpj: data.cnpj.replace(/\D/g, "") || null,
+      ativo: data.status === "Ativo",
+    };
+
+    if (data.segmento === "Meio de Hospedagem") {
+      if (data.uhs) payload.uh_total = Number(data.uhs);
+      if (data.leitos) payload.leitos = Number(data.leitos);
+      if (data.categoria) payload.classificacao = data.categoria;
+    }
+
+    if (data.segmento === "Atrativo Turístico") {
+      payload.estacionamento = data.estacionamento;
+      payload.destaque = data.areaVerde;
+      if (data.capacidade) payload.informacoes_gerais = `Capacidade estimada: ${data.capacidade}`;
+    }
+
+    if (data.segmento === "Alimentação") {
+      payload.estacionamento = data.estacionamento;
+      payload.parque = data.areaVerde;
+      if (data.categoria) payload.especificacao_gastronomia = data.categoria;
+      if (data.capacidade) payload.observacao = `Capacidade informada: ${data.capacidade}`;
+    }
+
+    if (data.segmento === "Serviço de Saúde") {
+      if (data.categoria) payload.principais_servicos = data.categoria;
+      if (data.capacidade) payload.horarios_emergencia = data.capacidade;
+    }
+
+    if (data.segmento === "Agência de Viagem") {
+      payload.estacionamento = data.estacionamento;
+      payload.destinos_inteligentes = data.produtosLocais;
+      if (data.categoria) payload.observacao = data.categoria;
+    }
+
+    if (data.segmento === "Transporte Turístico") {
+      payload.destinos_inteligentes = data.produtosLocais;
+      payload.acessibilidade = data.banheirosPCD || data.rampaAcesso;
+    }
+
+    return payload;
+  };
+
   const handleSave = async () => {
     if (!formData.razaoSocial || !formData.segmento) return;
-    
-    // 1. Limpa a máscara do CNPJ (remove pontos, barras e traços)
-    // Deixa apenas os números para agradar ao RegexValidator do Django
-    const cnpjLimpo = formData.cnpj.replace(/\D/g, '');
-
-    const payload = {
-      razao_social: formData.razaoSocial,
-      // 2. Se o Nome Fantasia estiver vazio, enviamos a Razão Social para o Django não bloquear
-      nome_fantasia: formData.nomeFantasia || formData.razaoSocial,
-      // 3. O nome correto do campo no Django é 'cnpj'
-      cnpj: cnpjLimpo,
-      ativo: formData.status === "Ativo"
-    };
 
     try {
       const isEdit = editId !== null;
-      const endpoint = segmentMapping[formData.segmento]; 
-      
-      const url = isEdit 
-        ? `${API_URL}/inventario/${endpoint}/${editId}/` 
-        : `${API_URL}/inventario/${endpoint}/`;
-      
-      const response = await fetch(url, {
-        method: isEdit ? "PUT" : "POST",
-        headers: getAuthHeaders(),
-        credentials: 'include', // ISSO PERMITE O ENVIO DO COOKIE DE SESSÃO
-        body: JSON.stringify(payload),
-      });
-
-      if (response.ok) {
-        const savedData = await response.json();
-        const formatted = {
-            id: savedData.id,
-            razaoSocial: savedData.razao_social,
-            nomeFantasia: savedData.nome_fantasia,
-            segmento: formData.segmento as Segmento,
-            cnpj: savedData.cnpj || "",
-            status: savedData.ativo ? "Ativo" : "Inativo"
-        };
-        
-        if (isEdit) {
-          setDados((prev) => prev.map((d) => (d.id === editId && d.segmento === formData.segmento) ? formatted : d));
-        } else {
-          setDados((prev) => [...prev, formatted]);
-        }
-        setShowModal(false);
-        setFormData(emptyForm);
-      } else {
-        const errorData = await response.text();
-        console.error("Erro do Django:", errorData);
-        alert("O servidor recusou os dados. Detalhes:\n" + errorData);
+      const endpoint = isEdit ? editingEndpoint : segmentMapping[formData.segmento];
+      if (!endpoint) {
+        toast.error("Selecione um segmento válido.");
+        return;
       }
+
+      const savedData = isEdit
+        ? await apiService.updateInventory(endpoint, editId, buildPayload(formData))
+        : await apiService.createInventory(endpoint, buildPayload(formData));
+
+      const formatted = {
+        id: Number(savedData.id),
+        endpoint,
+        razaoSocial: savedData.razao_social || savedData.razaoSocial || formData.razaoSocial,
+        nomeFantasia: savedData.nome_fantasia || savedData.nomeFantasia || formData.nomeFantasia || formData.razaoSocial,
+        segmento: formData.segmento as Segmento,
+        cnpj: savedData.cnpj || "",
+        status: savedData.ativo ? "Ativo" : "Inativo",
+      };
+
+      if (isEdit) {
+        setDados((prev) => prev.map((d) => (d.id === editId && d.endpoint === endpoint ? formatted : d)));
+      } else {
+        setDados((prev) => [...prev, formatted]);
+      }
+      setShowModal(false);
+      setFormData(emptyForm);
+      setEditId(null);
+      setEditingEndpoint(null);
     } catch (error) {
       console.error("Erro na requisição:", error);
-      alert("Erro de ligação. Verifique se o servidor Django (backend) está a correr.");
+      toast.error("Não foi possível salvar o estabelecimento.");
     }
   };
 
   const handleDelete = async (item: Estabelecimento) => {
     try {
-      const endpoint = segmentMapping[item.segmento];
-      const response = await fetch(`${API_URL}/inventario/${endpoint}/${item.id}/`, {
-        method: "DELETE",
-        headers: getAuthHeaders(),
-      });
-
-      if (response.ok || response.status === 204) {
-        setDados((prev) => prev.filter((d) => !(d.id === item.id && d.segmento === item.segmento)));
-        setDeleteConfirm(null);
-      } else {
-        console.error("Erro ao deletar o estabelecimento");
-        alert("Não foi possível eliminar o registo.");
-      }
+      await apiService.deleteInventory(item.endpoint, item.id);
+      setDados((prev) => prev.filter((d) => !(d.id === item.id && d.endpoint === item.endpoint)));
+      setDeleteConfirm(null);
     } catch (error) {
       console.error("Erro na requisição:", error);
-      alert("Erro de ligação ao tentar eliminar.");
+      toast.error("Não foi possível remover o estabelecimento.");
     }
   };
 
@@ -297,21 +305,6 @@ export function Inventario() {
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Toggle Modo Administrador */}
-          <button
-            onClick={() => setModoAdmin(!modoAdmin)}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg transition-all shadow-sm border ${
-              modoAdmin
-                ? "bg-violet-500 hover:bg-violet-600 text-white border-violet-600"
-                : "bg-white hover:bg-[#f8fafc] text-[#64748b] border-[#e2e8f0]"
-            }`}
-          >
-            <Shield size={16} />
-            <span className="text-sm font-medium">
-              {modoAdmin ? "Modo Admin Ativo" : "Modo Admin"}
-            </span>
-          </button>
-
           <button
             onClick={openNewModal}
             className="flex items-center gap-2 bg-[#1a6fbf] hover:bg-[#1560a8] text-white px-4 py-2.5 rounded-lg transition-colors shadow-sm"
@@ -322,22 +315,9 @@ export function Inventario() {
         </div>
       </div>
 
-      {/* Banner Modo Admin */}
-      {modoAdmin && (
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-start gap-3">
-          <Shield size={18} className="text-[#1a6fbf] mt-0.5 flex-shrink-0" />
-          <div className="flex-1">
-            <p className="text-sm font-semibold text-[#1a6fbf]">Modo Administrador Ativo</p>
-            <p className="text-xs text-blue-600 mt-1 leading-relaxed">
-              Edições aplicam-se imediatamente ao estado atual do registro. Todas as alterações são registradas no log de auditoria.
-            </p>
-          </div>
-          <button
-            onClick={() => setModoAdmin(false)}
-            className="p-1 rounded-lg text-blue-300 hover:text-[#1a6fbf] hover:bg-blue-100 transition-colors"
-          >
-            <X size={16} />
-          </button>
+      {loadError && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
+          {loadError}
         </div>
       )}
 
@@ -634,6 +614,7 @@ export function Inventario() {
                       <select
                         value={formData.segmento}
                         onChange={(e) => setFormData({ ...formData, segmento: e.target.value as Segmento | "" })}
+                        disabled={editId !== null}
                         className="w-full px-3 py-2 text-sm border border-[#e2e8f0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1a6fbf]/30 focus:border-[#1a6fbf] bg-white appearance-none pr-8 text-[#334155]"
                       >
                         <option value="">Selecione o segmento...</option>
@@ -641,6 +622,11 @@ export function Inventario() {
                           <option key={s} value={s}>{s}</option>
                         ))}
                       </select>
+                      {editId !== null && (
+                        <p className="text-[11px] text-[#94a3b8] mt-1">
+                          O segmento fica fixo durante a edição.
+                        </p>
+                      )}
                       <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#94a3b8] pointer-events-none" />
                     </div>
                   </div>

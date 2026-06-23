@@ -6,6 +6,7 @@ import { CentralImportacao } from "./pages/CentralImportacao";
 import { CruzamentoDados } from "./pages/CruzamentoDados";
 import { Historico } from "./pages/Historico";
 import { PortalTrade } from "./pages/PortalTrade";
+import { UsersPage } from "./pages/UsersPage";
 import { LoginPage } from "./pages/LoginPage";
 import { ProtectedRoute, SmartRedirectRoute } from "./components/ProtectedRoute";
 
@@ -15,62 +16,67 @@ export const router = createBrowserRouter([
     Component: LoginPage,
   },
   {
+    // Raiz do site intercepta o login e te joga pra página certa
     path: "/",
-    Component: Layout,
+    Component: SmartRedirectRoute,
+  },
+  {
+    // O Layout desenha o Menu Lateral (Sidebar)
+    element: <Layout />,
     children: [
       {
-        index: true,
-        Component: () => (
-          <SmartRedirectRoute>
-            <Dashboard />
-          </SmartRedirectRoute>
-        ),
-      },
-      {
-        path: "dashboard",
-        Component: () => (
+        path: "/dashboard",
+        element: (
           <ProtectedRoute allowedRoles={["Secretaria_Admin", "Secretaria_Staff"]}>
             <Dashboard />
           </ProtectedRoute>
         ),
       },
       {
-        path: "inventario",
-        Component: () => (
+        path: "/inventario",
+        element: (
           <ProtectedRoute allowedRoles={["Secretaria_Admin", "Secretaria_Staff"]}>
             <Inventario />
           </ProtectedRoute>
         ),
       },
       {
-        path: "importacao",
-        Component: () => (
+        path: "/importacao",
+        element: (
           <ProtectedRoute allowedRoles={["Secretaria_Admin", "Secretaria_Staff"]}>
             <CentralImportacao />
           </ProtectedRoute>
         ),
       },
       {
-        path: "cruzamento",
-        Component: () => (
+        path: "/cruzamento",
+        element: (
           <ProtectedRoute allowedRoles={["Secretaria_Admin", "Secretaria_Staff"]}>
             <CruzamentoDados />
           </ProtectedRoute>
         ),
       },
       {
-        path: "historico",
-        Component: () => (
+        path: "/historico",
+        element: (
           <ProtectedRoute allowedRoles={["Secretaria_Admin", "Secretaria_Staff"]}>
             <Historico />
           </ProtectedRoute>
         ),
       },
       {
-        path: "portal-trade",
-        Component: () => (
+        path: "/portal-trade",
+        element: (
           <ProtectedRoute>
             <PortalTrade />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "/users",
+        element: (
+          <ProtectedRoute allowedRoles={["Secretaria_Admin"]}>
+            <UsersPage />
           </ProtectedRoute>
         ),
       },
@@ -78,6 +84,6 @@ export const router = createBrowserRouter([
   },
   {
     path: "*",
-    Component: () => <Navigate to="/login" replace />,
+    element: <Navigate to="/login" replace />,
   },
 ]);

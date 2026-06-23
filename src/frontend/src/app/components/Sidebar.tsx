@@ -83,6 +83,10 @@ export function Sidebar() {
   };
 
   const filteredNavItems = baseNavItems.filter((item) => {
+    if (item.to === "/users") {
+      return canAccessModule("users");
+    }
+
     if (!item.requiresRole) return true;
     return item.requiresRole.some((role) => {
       if (role === "Secretaria_Admin" || role === "Secretaria_Staff") {
