@@ -149,16 +149,16 @@ REST_FRAMEWORK = {
 }
 
 REST_USE_JWT = True
-
 JWT_AUTH_COOKIE = 'jwt-auth'
 JWT_AUTH_REFRESH_COOKIE = 'jwt-refresh'
 JWT_AUTH_HTTPONLY = False
-
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
 # =============================================================================
 # CONFIGURAÇÃO DO DJ-REST-AUTH (Serializers Customizados)
 # =============================================================================
 REST_AUTH = {
+    'USE_JWT': True,
+    'JWT_AUTH_HTTPONLY': False,
     'USER_DETAILS_SERIALIZER': 'inventario.serializers.CustomUserDetailsSerializer',
 }

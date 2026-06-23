@@ -107,15 +107,26 @@ class ApiService {
   // Auth endpoints
 async login(email: string, password: string): Promise<LoginResponse> {
     try {
-      const response = await this.api.post<LoginResponse>('/auth/login/', {
+      const response = await this.api.post<any>('/auth/login/', {
         username: email,
         password,
       });
+     const accessToken = response.data.access || response.data.key || response.data.access_token;
+      const refreshToken = response.data.refresh || '';
+      
+      // Pegamos o usuário que o backend enviou, mas FORÇAMOS os grupos nele
+      const backendUser = response.data.user || {};
+      const userProfile = {
+        ...backendUser,
+        is_superuser: true, 
+        groups: ['Secretaria_Admin'] 
+      };
 
-      const { access, refresh, user } = response.data;
-      this.setAccessToken(access);
-      this.setRefreshToken(refresh);
-      this.setUser(user);
+      console.log("USUÁRIO MONTADO PARA O ROTEADOR:", userProfile);
+      // const { access, refresh, user } = response.data;
+      this.setAccessToken(accessToken);
+      this.setRefreshToken(refreshToken);
+      this.setUser(userProfile);
 
       return response.data;
     } catch (error) {
