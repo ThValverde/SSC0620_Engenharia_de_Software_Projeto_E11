@@ -35,7 +35,13 @@ from .models import (
     RegistroODS,
     ServicoApoio,
 )
-from .serializers import MeioHospedagemSerializer, TradePortalMeuEstabelecimentoSerializer
+from .serializers import (
+    GrupoFolcloricoSerializer,
+    GuiaTurismoSerializer,
+    MeioHospedagemSerializer,
+    RHCSerializer,
+    TradePortalMeuEstabelecimentoSerializer,
+)
 from .views import DashboardResumoView
 
 
@@ -104,6 +110,59 @@ class CnpjTests(TestCase):
         self.assertEqual(
             AtrativoLazerEntretenimento.objects.filter(cnpj__isnull=True).count(), 2
         )
+
+    def test_cnpj_invalido_retorna_mensagem_amigavel_no_serializer(self):
+        serializer = MeioHospedagemSerializer(data={"nome_fantasia": "Hotel A", "cnpj": "123"})
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("CNPJ deve conter exatamente 14 dígitos numéricos.", str(serializer.errors["cnpj"]))
+
+
+class DocumentoIndependenteTests(TestCase):
+    """Entidades independentes usam CPF ou documento próprio, não CNPJ."""
+
+    def test_guia_turismo_cpf_tem_mensagem_amigavel(self):
+        serializer = GuiaTurismoSerializer(data={"cpf": "123"})
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("CPF deve conter exatamente 11 dígitos numéricos.", str(serializer.errors["cpf"]))
+
+    def test_rhc_cpf_proprietario_tem_mensagem_amigavel(self):
+        serializer = RHCSerializer(data={
+            "numeracao_rhc": "RHC-1",
+            "tipo_imovel": "casa",
+            "cpf_proprietario": "123",
+        })
+        self.assertFalse(serializer.is_valid())
+        self.assertIn(
+            "CPF do proprietário deve conter exatamente 11 dígitos numéricos.",
+            str(serializer.errors["cpf_proprietario"]),
+        )
+
+    def test_grupo_folclorico_documento_segue_tipo_documento(self):
+        serializer = GrupoFolcloricoSerializer(data={
+            "nome": "Grupo X",
+            "tipo_documento": "cpf",
+            "documento": "123",
+        })
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("CPF deve conter exatamente 11 dígitos numéricos.", str(serializer.errors["documento"]))
+
+    def test_grupo_folclorico_accepta_cpf_sem_tipo_documento(self):
+        serializer = GrupoFolcloricoSerializer(data={
+            "nome": "Grupo X",
+            "documento": "12345678901",
+        })
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        self.assertEqual(serializer.validated_data["tipo_documento"], "cpf")
+        self.assertEqual(serializer.validated_data["documento"], "12345678901")
+
+    def test_grupo_folclorico_accepta_cnpj_sem_tipo_documento(self):
+        serializer = GrupoFolcloricoSerializer(data={
+            "nome": "Grupo X",
+            "documento": "11222333000181",
+        })
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        self.assertEqual(serializer.validated_data["tipo_documento"], "cnpj")
+        self.assertEqual(serializer.validated_data["documento"], "11222333000181")
 
 
 class HerancaTests(TestCase):

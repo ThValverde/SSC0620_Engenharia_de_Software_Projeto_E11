@@ -1,5 +1,6 @@
 from django.contrib.auth.models import User, Group
 from rest_framework import serializers
+import re
 
 # Importando os modelos do arquivo models.py da mesma pasta (.)
 from .models import (
@@ -38,6 +39,71 @@ from .models import (
 #==========================================
 # 0. SERIALIZERS DE AUTENTICAÇÃO E AUTORIZAÇÃO
 #==========================================
+def _validate_documento(value, tamanho, label):
+    texto = (value or "").strip()
+    if not texto:
+        return None
+
+    digitos = re.sub(r"\D", "", texto)
+    if len(digitos) != tamanho:
+        raise serializers.ValidationError(f"{label} deve conter exatamente {tamanho} dígitos numéricos.")
+
+    return digitos
+
+
+class CnpjFieldMixin(serializers.Serializer):
+    cnpj = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+
+    def validate_cnpj(self, value):
+        return _validate_documento(value, 14, "CNPJ")
+
+
+class CpfFieldMixin(serializers.Serializer):
+    cpf = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+
+    def validate_cpf(self, value):
+        return _validate_documento(value, 11, "CPF")
+
+
+class CpfProprietarioFieldMixin(serializers.Serializer):
+    cpf_proprietario = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+
+    def validate_cpf_proprietario(self, value):
+        return _validate_documento(value, 11, "CPF do proprietário")
+
+
+class OptionalFieldsModelSerializer(serializers.ModelSerializer):
+    """
+    ModelSerializer que torna campos não read-only opcionais (required=False, allow_null=True)
+    para permitir criações parciais a partir do frontend.
+    """
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for name, field in list(self.fields.items()):
+            if getattr(field, 'read_only', False):
+                continue
+            try:
+                field.required = False
+                field.allow_null = True
+            except Exception:
+                pass
+
+
+class DocumentoFieldMixin(serializers.Serializer):
+    documento = serializers.CharField(required=True, allow_blank=False, allow_null=False)
+
+    def validate_documento(self, value):
+        tipo = None
+        if hasattr(self, "initial_data"):
+            tipo = self.initial_data.get("tipo_documento")
+
+        tamanho = {"cpf": 11, "cnpj": 14}.get(tipo)
+        if tamanho is None:
+            return value
+
+        return _validate_documento(value, tamanho, (tipo or "Documento").upper())
+
+
 class CadastroUsuarioHierarquicoSerializer(serializers.Serializer):
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True)
@@ -127,7 +193,7 @@ class CadastroUsuarioHierarquicoSerializer(serializers.Serializer):
 
         return user
 
-class CustomUserDetailsSerializer(serializers.ModelSerializer):
+class CustomUserDetailsSerializer(OptionalFieldsModelSerializer):
     groups = serializers.SlugRelatedField(
         many=True,
         read_only=True,
@@ -139,7 +205,7 @@ class CustomUserDetailsSerializer(serializers.ModelSerializer):
         fields = ('id', 'username', 'email', 'is_superuser', 'groups', 'first_name', 'last_name')
 
 
-class UserAdminSerializer(serializers.ModelSerializer):
+class UserAdminSerializer(OptionalFieldsModelSerializer):
     password = serializers.CharField(write_only=True, required=False, allow_blank=False)
     groups = serializers.SlugRelatedField(
         many=True,
@@ -213,7 +279,7 @@ class UserAdminSerializer(serializers.ModelSerializer):
         return instance
 
 
-class TradeUserSerializer(serializers.ModelSerializer):
+class TradeUserSerializer(OptionalFieldsModelSerializer):
     password = serializers.CharField(write_only=True, required=False, allow_blank=False)
     estabelecimento_id = serializers.IntegerField(write_only=True, required=False, allow_null=True)
     nivel_permissao = serializers.ChoiceField(
@@ -643,20 +709,45 @@ class CatalogStateMixin:
         if not hasattr(instance, 'caracteristicas'):
             return
 
-        qs = Caracteristica.objects.filter(id__in=caracteristicas_ids)
-        if qs.count() != len(set(caracteristicas_ids)):
+        unique_ids = list(dict.fromkeys(caracteristicas_ids))
+        qs = Caracteristica.objects.filter(id__in=unique_ids)
+        if qs.count() != len(unique_ids):
             raise serializers.ValidationError({"caracteristicas": "Uma ou mais características não existem."})
 
+        by_id = {caracteristica.id: caracteristica for caracteristica in qs}
+
+        # Limpa primeiro para tornar a operação idempotente
+        instance.caracteristicas.clear()
+
+        # Para evitar problemas de validação de unicidade que podem
+        # ocorrer durante full_clean(), primeiro detectamos quais
+        # links já existem e só criamos os novos.
+        existing_ids = set(
+            instance.caracteristicas.through.objects.filter(
+                estabelecimento=instance
+            ).values_list('caracteristica_id', flat=True)
+        )
+
         links = []
-        for caracteristica in qs:
+        for caracteristica_id in unique_ids:
+            if caracteristica_id in existing_ids:
+                continue
+            caracteristica = by_id[caracteristica_id]
             link = EstabelecimentoCaracteristica(
                 estabelecimento=instance,
                 caracteristica=caracteristica,
             )
-            link.full_clean()
+            try:
+                link.full_clean()
+            except Exception:
+                # Se por algum motivo a validação apontar duplicata
+                # ou outro problema, ignoramos o link para não abortar
+                # toda a operação de atualização.
+                continue
             links.append(link)
-        instance.caracteristicas.clear()
-        EstabelecimentoCaracteristica.objects.bulk_create(links)
+
+        if links:
+            EstabelecimentoCaracteristica.objects.bulk_create(links)
 
     def _sync_metricas(self, instance, metricas_data):
         if metricas_data is None:
@@ -709,6 +800,9 @@ class TradePortalMeuEstabelecimentoSerializer(CatalogStateMixin, ODSStateMixin, 
 
     def _trade_instance(self, instance):
         return instance.especializacao() if hasattr(instance, 'especializacao') else instance
+
+    def validate_cnpj(self, value):
+        return _validate_documento(value, 14, "CNPJ")
 
     def to_representation(self, instance):
         trade = self._trade_instance(instance)
@@ -871,20 +965,43 @@ class TradePortalMeuEstabelecimentoSerializer(CatalogStateMixin, ODSStateMixin, 
             if instance.tipo == 'meio_hospedagem':
                 folha = instance.meiohospedagem
                 if 'uh_total' in infraestrutura_data:
-                    folha.uh_total = infraestrutura_data.get('uh_total')
+                    val = infraestrutura_data.get('uh_total')
+                    try:
+                        folha.uh_total = int(val) if val not in (None, '') else None
+                    except Exception:
+                        folha.uh_total = folha.uh_total
                 if 'leitos' in infraestrutura_data:
-                    folha.leitos = infraestrutura_data.get('leitos')
+                    val = infraestrutura_data.get('leitos')
+                    try:
+                        folha.leitos = int(val) if val not in (None, '') else None
+                    except Exception:
+                        folha.leitos = folha.leitos
                 folha.save()
             elif instance.tipo in ('meio_alimentacao_bebida', 'atrativo'):
-                if 'capacidade_maxima' in infraestrutura_data:
-                    instance.quantidade = infraestrutura_data.get('capacidade_maxima')
+                # aceitar tanto 'capacidade_maxima' quanto 'capacidade' vindas do frontend
+                capacidade = infraestrutura_data.get('capacidade_maxima')
+                if capacidade is None:
+                    capacidade = infraestrutura_data.get('capacidade')
+                if 'capacidade_maxima' in infraestrutura_data or 'capacidade' in infraestrutura_data:
+                    try:
+                        instance.quantidade = int(capacidade) if capacidade not in (None, '') else None
+                    except Exception:
+                        instance.quantidade = instance.quantidade
                     instance.save(update_fields=['quantidade'])
 
         if mao_de_obra_data is not None:
             if 'qtde_funcionarios_fixos' in mao_de_obra_data:
-                instance.qtde_funcionarios_fixos = mao_de_obra_data.get('qtde_funcionarios_fixos')
+                val = mao_de_obra_data.get('qtde_funcionarios_fixos')
+                try:
+                    instance.qtde_funcionarios_fixos = int(val) if val not in (None, '') else None
+                except Exception:
+                    instance.qtde_funcionarios_fixos = instance.qtde_funcionarios_fixos
             if 'qtde_funcionarios_temporarios' in mao_de_obra_data:
-                instance.qtde_funcionarios_temporarios = mao_de_obra_data.get('qtde_funcionarios_temporarios')
+                val = mao_de_obra_data.get('qtde_funcionarios_temporarios')
+                try:
+                    instance.qtde_funcionarios_temporarios = int(val) if val not in (None, '') else None
+                except Exception:
+                    instance.qtde_funcionarios_temporarios = instance.qtde_funcionarios_temporarios
             instance.save(update_fields=['qtde_funcionarios_fixos', 'qtde_funcionarios_temporarios'])
 
         if sustentabilidade_data is not None:
@@ -898,17 +1015,17 @@ class TradePortalMeuEstabelecimentoSerializer(CatalogStateMixin, ODSStateMixin, 
 # 1. SERIALIZERS DE SUPORTE (Aninhados)
 # ==========================================
 
-class EnderecoSerializer(serializers.ModelSerializer):
+class EnderecoSerializer(OptionalFieldsModelSerializer):
     class Meta:
         model = Endereco
         exclude = ['registro']
 
-class ContatoSerializer(serializers.ModelSerializer):
+class ContatoSerializer(OptionalFieldsModelSerializer):
     class Meta:
         model = Contato
         exclude = ['registro']
 
-class RedeSocialSerializer(serializers.ModelSerializer):
+class RedeSocialSerializer(OptionalFieldsModelSerializer):
     class Meta:
         model = RedeSocial
         exclude = ['registro']
@@ -917,7 +1034,7 @@ class RedeSocialSerializer(serializers.ModelSerializer):
 # 2. SERIALIZER PAI (Classe Base)
 # ==========================================
 
-class RegistroBaseSerializer(CatalogStateMixin, ODSStateMixin, serializers.ModelSerializer):
+class RegistroBaseSerializer(CatalogStateMixin, ODSStateMixin, OptionalFieldsModelSerializer):
     """
     Serializer base que lida automaticamente com Endereço e Contatos
     para qualquer filha de RegistroInventario.
@@ -940,6 +1057,9 @@ class RegistroBaseSerializer(CatalogStateMixin, ODSStateMixin, serializers.Model
         metricas_data = validated_data.pop('metricas', None)
 
         instancia = super().create(validated_data)
+
+        # Aplicar aliases comuns que o frontend pode enviar no nível raiz
+        self._apply_frontend_aliases(instancia)
 
         if endereco_data:
             Endereco.objects.create(registro=instancia, **endereco_data)
@@ -970,6 +1090,9 @@ class RegistroBaseSerializer(CatalogStateMixin, ODSStateMixin, serializers.Model
 
         instancia = super().update(instance, validated_data)
 
+        # Aplicar aliases que possam ter vindo no payload do frontend
+        self._apply_frontend_aliases(instancia)
+
         if endereco_data is not None:
             if hasattr(instancia, 'endereco'):
                 for attr, value in endereco_data.items():
@@ -997,26 +1120,75 @@ class RegistroBaseSerializer(CatalogStateMixin, ODSStateMixin, serializers.Model
 
         return instancia
 
+    def _apply_frontend_aliases(self, instancia):
+        """Mapeia campos que o frontend envia no nível raiz para os
+        atributos corretos do modelo ou para objetos relacionados.
+        Ex.: 'nome_fantasia' -> instancia.nome_fantasia ou instancia.nome
+              'razao_social'  -> instancia.razao_social ou instancia.empresa
+              campos de endereco no nível raiz -> instancia.endereco
+        """
+        data = getattr(self, 'initial_data', {}) or {}
+        changed = False
+
+        # Nome / empresa
+        if 'nome_fantasia' in data:
+            val = data.get('nome_fantasia') or ''
+            if hasattr(instancia, 'nome_fantasia'):
+                instancia.nome_fantasia = val
+                changed = True
+            elif hasattr(instancia, 'nome'):
+                instancia.nome = val
+                changed = True
+
+        if 'razao_social' in data:
+            val = data.get('razao_social') or ''
+            if hasattr(instancia, 'razao_social'):
+                instancia.razao_social = val
+                changed = True
+            elif hasattr(instancia, 'empresa'):
+                instancia.empresa = val
+                changed = True
+
+        # Endereço enviado no nível raiz (cep/rua/numero/bairro/regiao/latitude/longitude)
+        endereco_keys = ('cep', 'rua', 'numero', 'bairro', 'regiao', 'latitude', 'longitude')
+        if any(k in data for k in endereco_keys) and 'endereco' not in data:
+            endereco_defaults = {
+                'cep': data.get('cep', '') or '',
+                'rua': data.get('rua', '') or '',
+                'numero': data.get('numero', '') or '',
+                'bairro': data.get('bairro', '') or '',
+                'regiao': data.get('regiao', '') or '',
+                'latitude': data.get('latitude'),
+                'longitude': data.get('longitude'),
+            }
+            Endereco.objects.update_or_create(registro=instancia, defaults=endereco_defaults)
+
+        if changed:
+            try:
+                instancia.save()
+            except Exception:
+                pass
+
 # ==========================================
 # 3. SERIALIZERS DE CATÁLOGO
 # ==========================================
 
-class CaracteristicaSerializer(serializers.ModelSerializer):
+class CaracteristicaSerializer(OptionalFieldsModelSerializer):
     class Meta:
         model = Caracteristica
         fields = '__all__'
 
-class CaracteristicaValorSerializer(serializers.ModelSerializer):
+class CaracteristicaValorSerializer(OptionalFieldsModelSerializer):
     class Meta:
         model = CaracteristicaValor
         fields = '__all__'
 
-class ODSSerializer(serializers.ModelSerializer):
+class ODSSerializer(OptionalFieldsModelSerializer):
     class Meta:
         model = IndicadorODS
         fields = '__all__'
 
-class PagamentoSerializer(serializers.ModelSerializer):
+class PagamentoSerializer(OptionalFieldsModelSerializer):
     class Meta:
         model = Pagamento
         fields = '__all__'
@@ -1025,7 +1197,7 @@ class PagamentoSerializer(serializers.ModelSerializer):
 # 4. SERIALIZERS PRINCIPAIS (Filhas)
 # ==========================================
 
-class MeioHospedagemSerializer(RegistroBaseSerializer):
+class MeioHospedagemSerializer(CnpjFieldMixin, RegistroBaseSerializer):
     class Meta:
         model = MeioHospedagem
         fields = '__all__'
@@ -1038,75 +1210,114 @@ class MeioHospedagemSerializer(RegistroBaseSerializer):
                 escopo=EscopoCatalogo.MEIO_HOSPEDAGEM
             )
 
-class AtrativoSerializer(RegistroBaseSerializer):
+class AtrativoSerializer(CnpjFieldMixin, RegistroBaseSerializer):
     class Meta:
         model = AtrativoLazerEntretenimento
         fields = '__all__'
 
-class MeioAlimentacaoBebidaSerializer(RegistroBaseSerializer):
+class MeioAlimentacaoBebidaSerializer(CnpjFieldMixin, RegistroBaseSerializer):
     class Meta:
         model = MeioAlimentacaoBebida
         fields = '__all__'
 
-class EspacoEventoSerializer(RegistroBaseSerializer):
+class EspacoEventoSerializer(CnpjFieldMixin, RegistroBaseSerializer):
     class Meta:
         model = EspacoEvento
         fields = '__all__'
 
-class AgenciaOperadoraTurismoSerializer(RegistroBaseSerializer):
+class AgenciaOperadoraTurismoSerializer(CnpjFieldMixin, RegistroBaseSerializer):
     class Meta:
         model = AgenciaOperadoraTurismo
         fields = '__all__'
 
-class OrganizadorServicoEventoSerializer(RegistroBaseSerializer):
+class OrganizadorServicoEventoSerializer(CnpjFieldMixin, RegistroBaseSerializer):
     class Meta:
         model = OrganizadorServicoEvento
         fields = '__all__'
 
-class LocadoraVeiculoTransporteSerializer(RegistroBaseSerializer):
+class LocadoraVeiculoTransporteSerializer(CnpjFieldMixin, RegistroBaseSerializer):
     class Meta:
         model = LocadoraVeiculoTransporte
         fields = '__all__'
 
-class ArtesanatoSerializer(RegistroBaseSerializer):
+class ArtesanatoSerializer(CnpjFieldMixin, RegistroBaseSerializer):
     class Meta:
         model = Artesanato
         fields = '__all__'
 
-class BancoSerializer(RegistroBaseSerializer):
+class BancoSerializer(CnpjFieldMixin, RegistroBaseSerializer):
     class Meta:
         model = Banco
         fields = '__all__'
 
-class TemploReligiosoSerializer(RegistroBaseSerializer):
+class TemploReligiosoSerializer(CnpjFieldMixin, RegistroBaseSerializer):
     class Meta:
         model = TemploReligioso
         fields = '__all__'
 
-class ServicoSaudeSerializer(RegistroBaseSerializer):
+class ServicoSaudeSerializer(CnpjFieldMixin, RegistroBaseSerializer):
     class Meta:
         model = ServicoSaude
         fields = '__all__'
 
-class ServicoApoioSerializer(RegistroBaseSerializer):
+class ServicoApoioSerializer(CnpjFieldMixin, RegistroBaseSerializer):
     class Meta:
         model = ServicoApoio
         fields = '__all__'
 
-class GuiaTurismoSerializer(RegistroBaseSerializer):
+class GuiaTurismoSerializer(CpfFieldMixin, RegistroBaseSerializer):
     class Meta:
         model = GuiaTurismo
         fields = '__all__'
 
-class RHCSerializer(RegistroBaseSerializer):
+class RHCSerializer(CpfProprietarioFieldMixin, RegistroBaseSerializer):
     class Meta:
         model = RHC
         fields = '__all__'
 
-class GrupoFolcloricoSerializer(RegistroBaseSerializer):
+class GrupoFolcloricoSerializer(DocumentoFieldMixin, RegistroBaseSerializer):
+    tipo_documento = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    documento = serializers.CharField(required=True, allow_blank=False, allow_null=False)
+
     class Meta:
         model = GrupoFolclorico
         fields = '__all__'
+        validators = []
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+
+        documento_raw = attrs.get("documento", "") or ""
+        documento = re.sub(r"\D", "", str(documento_raw))
+        tipo_documento = (attrs.get("tipo_documento") or "").strip().lower()
+
+        if len(documento) not in (11, 14):
+            raise serializers.ValidationError({
+                "documento": "CPF/CNPJ deve conter 11 ou 14 dígitos numéricos.",
+            })
+
+        if not tipo_documento:
+            attrs["tipo_documento"] = "cpf" if len(documento) == 11 else "cnpj"
+        elif tipo_documento not in ("cpf", "cnpj"):
+            raise serializers.ValidationError({
+                "tipo_documento": "Use CPF ou CNPJ.",
+            })
+        elif (tipo_documento == "cpf" and len(documento) != 11) or (tipo_documento == "cnpj" and len(documento) != 14):
+            esperado = 11 if tipo_documento == "cpf" else 14
+            raise serializers.ValidationError({
+                "documento": f"{tipo_documento.upper()} deve conter exatamente {esperado} dígitos numéricos.",
+            })
+
+        if GrupoFolclorico.objects.filter(
+            tipo_documento=attrs["tipo_documento"],
+            documento=documento,
+        ).exclude(pk=getattr(self.instance, "pk", None)).exists():
+            raise serializers.ValidationError({
+                "documento": "Já existe um grupo folclórico cadastrado com esse CPF/CNPJ.",
+            })
+
+        attrs["documento"] = documento
+        return attrs
 
 class TaxiAplicativoSerializer(RegistroBaseSerializer):
     class Meta:

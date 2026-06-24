@@ -47,6 +47,7 @@ discutidos sobre o modelo original:
 """
 
 from datetime import date
+import re
 
 from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
@@ -1030,7 +1031,7 @@ class GrupoFolclorico(RegistroInventario):
 
     nome = models.CharField(max_length=255)
     razao_social = models.CharField(max_length=255, blank=True)
-    tipo_documento = models.CharField(max_length=4, choices=TipoDocumento.choices)
+    tipo_documento = models.CharField(max_length=4, choices=TipoDocumento.choices, blank=True)
     documento = models.CharField(max_length=14)
     classificacao_grupo = models.CharField(max_length=120, blank=True)
     quantidade = models.PositiveIntegerField(null=True, blank=True)
@@ -1049,11 +1050,23 @@ class GrupoFolclorico(RegistroInventario):
         ]
 
     def clean(self):
-        tamanho = {"cpf": 11, "cnpj": 14}.get(self.tipo_documento)
-        if tamanho and (not self.documento.isdigit() or len(self.documento) != tamanho):
+        documento = re.sub(r"\D", "", self.documento or "")
+        tipo_documento = (self.tipo_documento or "").strip().lower()
+
+        if len(documento) not in (11, 14):
+            raise ValidationError("CPF/CNPJ deve conter 11 ou 14 dígitos numéricos.")
+
+        if not tipo_documento:
+            self.tipo_documento = "cpf" if len(documento) == 11 else "cnpj"
+        elif tipo_documento not in ("cpf", "cnpj"):
+            raise ValidationError("Use CPF ou CNPJ.")
+        elif (tipo_documento == "cpf" and len(documento) != 11) or (tipo_documento == "cnpj" and len(documento) != 14):
+            esperado = 11 if tipo_documento == "cpf" else 14
             raise ValidationError(
-                f"{self.get_tipo_documento_display()} deve ter {tamanho} dígitos numéricos."
+                f"{self.get_tipo_documento_display()} deve ter {esperado} dígitos numéricos."
             )
+
+        self.documento = documento
 
     def __str__(self):
         return self.nome

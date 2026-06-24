@@ -107,6 +107,16 @@ type TradePortalForm = {
   metricas: Array<{ id: number; valor: string }>;
 };
 
+const tipoToEscopo: Partial<Record<string, string>> = {
+  meio_hospedagem: "meio_hospedagem",
+  meio_alimentacao_bebida: "alimentacao",
+  atrativo: "atrativos",
+  espaco_evento: "espacos_eventos",
+  agencia_turismo: "agencias",
+  organizador_evento: "organizadores",
+  artesanato: "artesanato",
+};
+
 const emptyContact = (): ContactForm => ({ telefone: "", email: "", cargo: "" });
 
 const emptyForm = (): TradePortalForm => ({
@@ -231,11 +241,7 @@ export function TradePortalPage() {
 
   useEffect(() => {
     const loadCatalog = async () => {
-      const escopo = entity?.tipo === "meio_hospedagem"
-        ? "meio_hospedagem"
-        : entity?.tipo === "meio_alimentacao_bebida"
-          ? "alimentacao"
-          : undefined;
+      const escopo = entity?.tipo ? tipoToEscopo[entity.tipo] : undefined;
 
       if (!escopo) {
         setCatalogTree([]);
@@ -318,16 +324,12 @@ export function TradePortalPage() {
 
   const toggleCatalogSectionQuestion = (section: CatalogSection, checked: boolean) => {
     const sectionIds = section.subgrupos.flatMap((group) => group.opcoes.map((option) => option.id));
-    const negationIds = section.subgrupos.flatMap((group) =>
-      group.opcoes.filter((option) => option.categoria.trim().toLowerCase() === "não").map((option) => option.id)
-    );
 
     setForm((prev) => {
       const current = new Set(prev.caracteristicasSelecionadas);
+      // Responder "Não" (ou reabrir a pergunta) limpa as marcações desta seção.
+      // Não existe mais opção "Não" no catálogo: ausência de marcação = não possui.
       sectionIds.forEach((id) => current.delete(id));
-      if (!checked) {
-        negationIds.forEach((id) => current.add(id));
-      }
       return {
         ...prev,
         caracteristicasSelecionadas: Array.from(current),

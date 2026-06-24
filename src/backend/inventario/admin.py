@@ -6,6 +6,9 @@ RegistroInventario (a raiz da herança multi-tabela); o Django aceita
 inlines cuja FK referencia um ancestral do model registrado.
 """
 
+import re
+
+from django import forms
 from django.contrib import admin
 from .models import (
     RegistroInventario,
@@ -218,6 +221,40 @@ class RHCAdmin(RegistroBaseAdmin):
 
 @admin.register(GrupoFolclorico)
 class GrupoFolcloricoAdmin(RegistroBaseAdmin):
+    class GrupoFolcloricoForm(forms.ModelForm):
+        class Meta:
+            model = GrupoFolclorico
+            fields = "__all__"
+
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.fields["documento"].label = "CPF/CNPJ"
+            self.fields["documento"].help_text = "Informe CPF (11 dígitos) ou CNPJ (14 dígitos). O tipo será definido automaticamente."
+            self.fields["documento"].widget.attrs.update({"placeholder": "CPF ou CNPJ", "maxlength": 18})
+            self.fields["tipo_documento"].required = False
+            self.fields["tipo_documento"].help_text = "Opcional: será preenchido automaticamente a partir do número informado."
+
+        def clean(self):
+            cleaned = super().clean()
+            documento = re.sub(r"\D", "", cleaned.get("documento", "") or "")
+            tipo_documento = (cleaned.get("tipo_documento") or "").strip().lower()
+
+            if len(documento) not in (11, 14):
+                self.add_error("documento", "CPF/CNPJ deve conter 11 ou 14 dígitos numéricos.")
+                return cleaned
+
+            if not tipo_documento:
+                cleaned["tipo_documento"] = "cpf" if len(documento) == 11 else "cnpj"
+            elif tipo_documento not in ("cpf", "cnpj"):
+                self.add_error("tipo_documento", "Use CPF ou CNPJ.")
+            elif (tipo_documento == "cpf" and len(documento) != 11) or (tipo_documento == "cnpj" and len(documento) != 14):
+                esperado = 11 if tipo_documento == "cpf" else 14
+                self.add_error("documento", f"{tipo_documento.upper()} deve conter exatamente {esperado} dígitos numéricos.")
+
+            cleaned["documento"] = documento
+            return cleaned
+
+    form = GrupoFolcloricoForm
     list_display = ["nome", "tipo_documento", "documento"]
     search_fields = ["nome", "documento"]
 

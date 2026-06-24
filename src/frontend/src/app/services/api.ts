@@ -154,7 +154,60 @@ interface HistoricoImportacao {
 class ApiService {
   private api: AxiosInstance;
   private refreshTokenRequest: Promise<string> | null = null;
-  
+
+  private extractApiErrorMessage(responseData: any, fallback: string): string {
+    if (!responseData) {
+      return fallback;
+    }
+
+    if (typeof responseData === 'string') {
+      return responseData;
+    }
+
+    if (typeof responseData.detail === 'string' && responseData.detail.trim()) {
+      return responseData.detail;
+    }
+
+    if (typeof responseData.error === 'string' && responseData.error.trim()) {
+      return responseData.error;
+    }
+
+    if (typeof responseData.message === 'string' && responseData.message.trim()) {
+      return responseData.message;
+    }
+
+    if (Array.isArray(responseData)) {
+      const first = responseData.find((item) => typeof item === 'string' && item.trim());
+      return first || fallback;
+    }
+
+    if (typeof responseData === 'object') {
+      const parts: string[] = [];
+      for (const [field, value] of Object.entries(responseData)) {
+        if (Array.isArray(value)) {
+          const joined = value.map((item) => String(item)).join(', ');
+          parts.push(`${field}: ${joined}`);
+          continue;
+        }
+
+        if (typeof value === 'string') {
+          parts.push(`${field}: ${value}`);
+          continue;
+        }
+
+        if (value && typeof value === 'object') {
+          parts.push(`${field}: ${JSON.stringify(value)}`);
+        }
+      }
+
+      if (parts.length) {
+        return parts.join(' | ');
+      }
+    }
+
+    return fallback;
+  }
+
   async getDashboardResumo(): Promise<any> {
     try {
       const response = await this.api.get('/inventario/dashboard/resumo/');
@@ -251,7 +304,7 @@ class ApiService {
       return response.data;
     } catch (error) {
       if (axios.isAxiosError(error)) {
-        const message = error.response?.data?.detail || 'Erro ao criar estabelecimento';
+        const message = this.extractApiErrorMessage(error.response?.data, 'Erro ao criar estabelecimento');
         toast.error(message);
       }
       throw error;
@@ -265,7 +318,7 @@ class ApiService {
       return response.data;
     } catch (error) {
       if (axios.isAxiosError(error)) {
-        const message = error.response?.data?.detail || 'Erro ao atualizar estabelecimento';
+        const message = this.extractApiErrorMessage(error.response?.data, 'Erro ao atualizar estabelecimento');
         toast.error(message);
       }
       throw error;
@@ -278,7 +331,7 @@ class ApiService {
       toast.success('Estabelecimento removido com sucesso');
     } catch (error) {
       if (axios.isAxiosError(error)) {
-        const message = error.response?.data?.detail || 'Erro ao remover estabelecimento';
+        const message = this.extractApiErrorMessage(error.response?.data, 'Erro ao remover estabelecimento');
         toast.error(message);
       }
       throw error;
@@ -547,7 +600,7 @@ async login(email: string, password: string): Promise<LoginResponse> {
       return response.data;
     } catch (error) {
       if (axios.isAxiosError(error)) {
-        const message = error.response?.data?.detail || 'Erro ao atualizar estabelecimento';
+        const message = this.extractApiErrorMessage(error.response?.data, 'Erro ao atualizar estabelecimento');
         toast.error(message);
       }
       throw error;

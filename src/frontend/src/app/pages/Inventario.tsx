@@ -120,7 +120,12 @@ const endpointToSegment = Object.entries(segmentMapping).reduce(
 
 const segmentoToEscopo: Partial<Record<Segmento, string>> = {
   "Meio de Hospedagem": "meio_hospedagem",
+  "Atrativo Turístico": "atrativos",
   "Alimentação": "alimentacao",
+  "Espaço de Evento": "espacos_eventos",
+  "Agência de Viagem": "agencias",
+  "Organizador de Evento": "organizadores",
+  "Artesanato": "artesanato",
 };
 
 interface FormData {
@@ -309,17 +314,12 @@ export function Inventario() {
 
   const toggleCatalogSectionQuestion = (section: CatalogSection, checked: boolean) => {
     const sectionIds = section.subgrupos.flatMap((group) => group.opcoes.map((option) => option.id));
-    const negationIds = section.subgrupos.flatMap((group) =>
-      group.opcoes.filter((option) => option.categoria.trim().toLowerCase() === "não").map((option) => option.id)
-    );
 
     setFormData((prev) => {
       const current = new Set(prev.caracteristicasSelecionadas);
+      // Responder "Não" (ou reabrir a pergunta) limpa as marcações desta seção.
+      // Não existe mais opção "Não" no catálogo: ausência de marcação = não possui.
       sectionIds.forEach((id) => current.delete(id));
-
-      if (!checked) {
-        negationIds.forEach((id) => current.add(id));
-      }
 
       return {
         ...prev,

@@ -55,6 +55,9 @@ export function CatalogTreeEditor({
   const [expandedSections, setExpandedSections] = useState<Record<number, boolean>>({});
   const [creatingKey, setCreatingKey] = useState<string | null>(null);
 
+  // Define apenas o estado INICIAL de cada seção (uma vez por seção).
+  // Não depende de `selectedIds` para não reverter o clique do usuário:
+  // depois de inicializada, a seção só muda quando o usuário clica no Sim/Não.
   useEffect(() => {
     setExpandedSections((prev) => {
       const next = { ...prev };
@@ -67,7 +70,8 @@ export function CatalogTreeEditor({
       }
       return next;
     });
-  }, [selectedIds, tree]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tree]);
 
   const handleToggleSection = (section: CatalogSection, checked: boolean) => {
     setExpandedSections((prev) => ({ ...prev, [section.secao_id]: checked }));
@@ -198,9 +202,9 @@ export function CatalogTreeEditor({
                           return (
                             <div
                               key={option.id}
-                              className="flex items-center justify-between gap-3 rounded-md border border-[#e2e8f0] px-3 py-2 text-sm text-[#334155]"
+                              className="flex items-start justify-between gap-3 rounded-md border border-[#e2e8f0] px-3 py-2 text-[#334155]"
                             >
-                              <label className="flex min-w-0 flex-1 items-center gap-3">
+                              <label className="flex min-w-0 flex-1 items-start gap-3 text-sm leading-tight">
                                 <input
                                   type="checkbox"
                                   checked={selectedIds.includes(option.id)}
@@ -215,8 +219,8 @@ export function CatalogTreeEditor({
                                     className="min-w-0 flex-1 rounded-md border border-[#cbd5e1] px-2 py-1 text-sm focus:border-[#1a6fbf] focus:outline-none focus:ring-2 focus:ring-[#1a6fbf]/20"
                                   />
                                 ) : (
-                                  <span className="flex min-w-0 items-center gap-2">
-                                    <span className="truncate">{option.categoria}</span>
+                                  <span className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                                    <span className="whitespace-normal break-words">{option.categoria}</span>
                                     {option.customizada && (
                                       <span className="inline-flex items-center gap-1 rounded-full bg-[#eff6ff] px-2 py-0.5 text-[10px] font-medium text-[#1a6fbf]">
                                         <Check size={10} />
