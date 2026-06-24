@@ -2,6 +2,15 @@ export function digitsOnly(value: string) {
   return (value || "").replace(/\D/g, "");
 }
 
+export function formatCPF(value: string) {
+  const d = digitsOnly(value).slice(0, 11);
+  if (!d) return "";
+  if (d.length <= 3) return d;
+  if (d.length <= 6) return d.replace(/^(\d{3})(\d+)/, "$1.$2");
+  if (d.length <= 9) return d.replace(/^(\d{3})(\d{3})(\d+)/, "$1.$2.$3");
+  return d.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, "$1.$2.$3-$4");
+}
+
 export function formatCNPJ(value: string) {
   const d = digitsOnly(value).slice(0, 14);
   if (!d) return "";
@@ -10,6 +19,12 @@ export function formatCNPJ(value: string) {
   if (d.length <= 8) return d.replace(/^(\d{2})(\d{3})(\d+)/, "$1.$2.$3");
   if (d.length <= 12) return d.replace(/^(\d{2})(\d{3})(\d{3})(\d+)/, "$1.$2.$3/$4");
   return d.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5");
+}
+
+export function formatCPFOrCNPJ(value: string) {
+  const d = digitsOnly(value);
+  if (d.length <= 11) return formatCPF(value);
+  return formatCNPJ(value);
 }
 
 export function formatCEP(value: string) {

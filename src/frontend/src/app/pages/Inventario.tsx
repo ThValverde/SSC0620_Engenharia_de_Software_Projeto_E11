@@ -6,7 +6,7 @@ import {
   FileText, Building,
 } from "lucide-react";
 import { apiService } from "../services/api";
-import { formatCNPJ, formatCEP, formatPhone, toNumberOrNull } from "../utils/formatters";
+import { formatCNPJ, formatCPFOrCNPJ, formatCEP, formatPhone, toNumberOrNull } from "../utils/formatters";
 import { useAuth } from "../contexts/AuthContext";
 import { CatalogTreeEditor, type CatalogSection } from "../components/CatalogTreeEditor";
 
@@ -117,6 +117,45 @@ const endpointToSegment = Object.entries(segmentMapping).reduce(
   },
   {} as Record<string, Segmento>
 );
+
+const normalizeInventarioItem = (item: any, endpoint: string, segmento: Segmento): Estabelecimento => {
+  // Extrai campo de documento (pode ser cnpj, cpf, documento, cpf_proprietario)
+  const getDocument = () => {
+    if (segmento === "Guia de Turismo") return item.cpf || "";
+    if (segmento === "RHC") return item.cpf_proprietario || "";
+    if (segmento === "Grupo Folclórico") return item.documento || "";
+    if (segmento === "Táxi/Aplicativo") return item.documento || ""; // pode não ter
+    return item.cnpj || "";
+  };
+
+  // Extrai razão social / nome principal
+  const getRazaoSocial = () => {
+    if (segmento === "Guia de Turismo") return item.nome || "";
+    if (segmento === "RHC") return item.nome_proprietario || "";
+    if (segmento === "Grupo Folclórico") return item.razao_social || item.nome || "";
+    if (segmento === "Táxi/Aplicativo") return item.nome || "";
+    return item.razao_social || "";
+  };
+
+  // Extrai nome fantasia / nome alternativo
+  const getNomeFantasia = () => {
+    if (segmento === "Guia de Turismo") return item.nome || "";
+    if (segmento === "RHC") return item.denominacao_comercial || item.nome_proprietario || "";
+    if (segmento === "Grupo Folclórico") return item.nome || item.razao_social || "";
+    if (segmento === "Táxi/Aplicativo") return item.empresa || item.nome || "";
+    return item.nome_fantasia || item.razao_social || "";
+  };
+
+  return {
+    id: Number(item.id),
+    endpoint,
+    razaoSocial: getRazaoSocial(),
+    nomeFantasia: getNomeFantasia(),
+    segmento,
+    cnpj: getDocument(),
+    status: item.ativo ? "Ativo" : "Inativo",
+  };
+};
 
 const segmentoToEscopo: Partial<Record<Segmento, string>> = {
   "Meio de Hospedagem": "meio_hospedagem",
@@ -229,15 +268,7 @@ export function Inventario() {
             const items = await apiService.listInventory(endpoint);
             const segmento = endpointToSegment[endpoint];
 
-            return items.map((item: any) => ({
-              id: Number(item.id),
-              endpoint,
-              razaoSocial: item.razao_social || item.razaoSocial || "",
-              nomeFantasia: item.nome_fantasia || item.nomeFantasia || item.razao_social || "",
-              segmento,
-              cnpj: item.cnpj || item.cnpj_cpf || "",
-              status: item.ativo ? "Ativo" : "Inativo",
-            }));
+            return items.map((item: any) => normalizeInventarioItem(item, endpoint, segmento));
           })
         );
 
@@ -420,6 +451,45 @@ export function Inventario() {
     setShowModal(true);
   };
 
+  const normalizeFormData = (detail: any, segmento: Segmento, est: Estabelecimento) => {
+    // Mapeia campos de documento para razaoSocial e nomeFantasia
+    const getRazaoSocial = () => {
+      if (segmento === "Guia de Turismo") return detail.nome || est.razaoSocial || "";
+      if (segmento === "RHC") return detail.nome_proprietario || est.razaoSocial || "";
+      if (segmento === "Grupo Folclórico") return detail.razao_social || detail.nome || est.razaoSocial || "";
+      if (segmento === "Táxi/Aplicativo") return detail.nome || est.razaoSocial || "";
+      return detail.razao_social || est.razaoSocial || "";
+    };
+
+    const getNomeFantasia = () => {
+      if (segmento === "Guia de Turismo") return detail.nome || est.nomeFantasia || "";
+      if (segmento === "RHC") return detail.denominacao_comercial || detail.nome_proprietario || est.nomeFantasia || "";
+      if (segmento === "Grupo Folclórico") return detail.nome || detail.razao_social || est.nomeFantasia || "";
+      if (segmento === "Táxi/Aplicativo") return detail.empresa || detail.nome || est.nomeFantasia || "";
+      return detail.nome_fantasia || detail.razao_social || est.nomeFantasia || "";
+    };
+
+    const getDocument = () => {
+      if (segmento === "Guia de Turismo") return detail.cpf || est.cnpj || "";
+      if (segmento === "RHC") return detail.cpf_proprietario || est.cnpj || "";
+      if (segmento === "Grupo Folclórico") return detail.documento || est.cnpj || "";
+      if (segmento === "Táxi/Aplicativo") return detail.documento || est.cnpj || "";
+      return detail.cnpj || est.cnpj || "";
+    };
+
+    // Campos específicos
+    const getNumeracaoRHC = () => segmento === "RHC" ? (detail.numeracao_rhc || "") : "";
+    const getTipoImovelRHC = () => segmento === "RHC" ? (detail.tipo_imovel || "") : "";
+
+    return {
+      razaoSocial: getRazaoSocial(),
+      nomeFantasia: getNomeFantasia(),
+      cnpj: getDocument(),
+      numeracaoRHC: getNumeracaoRHC(),
+      tipoImovelRHC: getTipoImovelRHC(),
+    };
+  };
+
   const openEditModal = async (est: Estabelecimento) => {
     setEditId(est.id);
     setEditingEndpoint(est.endpoint);
@@ -449,11 +519,16 @@ export function Inventario() {
         ? buildOdsItems(odsCatalog, sustainability)
         : sustainability;
 
+      // Normalizar campos para o formulário
+      const normalized = normalizeFormData(detail, est.segmento, est);
+
       setFormData({
         ...createEmptyForm(odsCatalog),
-        razaoSocial: detail.razao_social || est.razaoSocial,
-        nomeFantasia: detail.nome_fantasia || est.nomeFantasia,
-        cnpj: detail.cnpj || est.cnpj,
+        razaoSocial: normalized.razaoSocial,
+        nomeFantasia: normalized.nomeFantasia,
+        cnpj: normalized.cnpj,
+        numeracaoRHC: normalized.numeracaoRHC,
+        tipoImovelRHC: normalized.tipoImovelRHC,
         segmento: est.segmento,
         status: detail.ativo ? "Ativo" : "Inativo",
         sustentabilidade: sustainabilityItems,
@@ -469,13 +544,43 @@ export function Inventario() {
   };
 
   const buildPayload = (data: FormData) => {
+    const isIndependent = ["Guia de Turismo", "RHC", "Grupo Folclórico", "Táxi/Aplicativo"].includes(data.segmento);
+    const documentValue = data.cnpj.replace(/\D/g, "");
+
     const payload: Record<string, any> = {
-      razao_social: data.razaoSocial,
-      nome_fantasia: data.nomeFantasia || data.razaoSocial,
-      cnpj: data.cnpj.replace(/\D/g, "") || null,
       ativo: data.status === "Ativo",
     };
 
+    // Handle document fields based on entity type
+    if (data.segmento === "Guia de Turismo") {
+      payload.nome = data.nomeFantasia || data.razaoSocial;
+      payload.cpf = documentValue || null;
+    } else if (data.segmento === "RHC") {
+      payload.numeracao_rhc = data.numeracaoRHC || `RHC-${Date.now()}`;
+      payload.tipo_imovel = data.tipoImovelRHC || "";
+      payload.nome_proprietario = data.razaoSocial || "";
+      payload.cpf_proprietario = documentValue || null;
+      if (data.leitos) payload.quantidade_leitos = Number(data.leitos);
+      if (data.capacidade) payload.capacidade_maxima = Number(data.capacidade);
+    } else if (data.segmento === "Grupo Folclórico") {
+      payload.nome = data.nomeFantasia || data.razaoSocial;
+      payload.razao_social = data.razaoSocial || "";
+      const cpfOrCnpj = documentValue;
+      if (cpfOrCnpj) {
+        payload.tipo_documento = cpfOrCnpj.length === 11 ? "cpf" : "cnpj";
+        payload.documento = cpfOrCnpj;
+      }
+      if (data.categoria) payload.classificacao_grupo = data.categoria;
+    } else if (data.segmento === "Táxi/Aplicativo") {
+      payload.nome = data.nomeFantasia || data.razaoSocial;
+    } else {
+      // Estabelecimento-based entities
+      payload.razao_social = data.razaoSocial;
+      payload.nome_fantasia = data.nomeFantasia || data.razaoSocial;
+      payload.cnpj = documentValue || null;
+    }
+
+    // Segment-specific fields
     if (data.segmento === "Meio de Hospedagem") {
       if (data.uhs) payload.uh_total = Number(data.uhs);
       if (data.leitos) payload.leitos = Number(data.leitos);
@@ -511,19 +616,9 @@ export function Inventario() {
       payload.acessibilidade = data.banheirosPCD || data.rampaAcesso;
     }
 
-    // Serviço de Apoio requires `tipo_servico` (choice in model)
     if (data.segmento === "Serviço de Apoio") {
       if (data.tipoServico) payload.tipo_servico = data.tipoServico;
       if (data.capacidade) payload.observacao = data.capacidade;
-    }
-
-    // RHC (registro habitacional) requires numeracao_rhc and tipo_imovel
-    if (data.segmento === "RHC") {
-      if (data.numeracaoRHC) payload.numeracao_rhc = data.numeracaoRHC;
-      if (data.tipoImovelRHC) payload.tipo_imovel = data.tipoImovelRHC;
-      // map common fields if present
-      if (data.leitos) payload.quantidade_leitos = Number(data.leitos);
-      if (data.capacidade) payload.capacidade_maxima = Number(data.capacidade);
     }
 
     payload.sustentabilidade = data.sustentabilidade.map((item) => ({
@@ -556,15 +651,7 @@ export function Inventario() {
         ? await apiService.updateInventory(endpoint, editId, buildPayload(formData))
         : await apiService.createInventory(endpoint, buildPayload(formData));
 
-      const formatted = {
-        id: Number(savedData.id),
-        endpoint,
-        razaoSocial: savedData.razao_social || savedData.razaoSocial || formData.razaoSocial,
-        nomeFantasia: savedData.nome_fantasia || savedData.nomeFantasia || formData.nomeFantasia || formData.razaoSocial,
-        segmento: formData.segmento as Segmento,
-        cnpj: savedData.cnpj || "",
-        status: savedData.ativo ? "Ativo" : "Inativo",
-      };
+      const formatted = normalizeInventarioItem(savedData, endpoint, formData.segmento as Segmento);
 
       if (isEdit) {
         setDados((prev) => prev.map((d) => (d.id === editId && d.endpoint === endpoint ? formatted : d)));
@@ -648,7 +735,7 @@ export function Inventario() {
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94a3b8]" />
             <input
               type="text"
-              placeholder="Buscar por razão social, nome fantasia ou CNPJ..."
+              placeholder="Buscar por razão social, nome, CNPJ ou CPF..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-9 pr-3 py-2 text-sm border border-[#e2e8f0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1a6fbf]/30 focus:border-[#1a6fbf] bg-[#f8fafc]"
@@ -867,14 +954,14 @@ export function Inventario() {
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-[#64748b] mb-1">
-                      CNPJ <span className="text-red-500">*</span>
+                      CNPJ/CPF <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
                       value={formData.cnpj}
-                      onChange={(e) => setFormData({ ...formData, cnpj: formatCNPJ(e.target.value) })}
+                      onChange={(e) => setFormData({ ...formData, cnpj: formatCPFOrCNPJ(e.target.value) })}
                       className="w-full px-3 py-2 text-sm border border-[#e2e8f0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1a6fbf]/30 focus:border-[#1a6fbf] font-mono"
-                      placeholder="00.000.000/0001-00"
+                      placeholder="000.000.000-00 ou 00.000.000/0001-00"
                       maxLength={18}
                     />
                   </div>

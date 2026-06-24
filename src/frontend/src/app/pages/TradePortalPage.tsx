@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { apiService } from "../services/api";
 import { useAuth } from "../contexts/AuthContext";
 import { CatalogTreeEditor, type CatalogSection } from "../components/CatalogTreeEditor";
-import { formatCNPJ, formatCEP, formatPhone } from "../utils/formatters";
+import { formatCNPJ, formatCPFOrCNPJ, formatCEP, formatPhone } from "../utils/formatters";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Input } from "../components/ui/input";
@@ -462,8 +462,8 @@ export function TradePortalPage() {
                 <Field label="Nome fantasia">
                   <Input value={form.nome_fantasia} disabled={!canEdit} onChange={(e) => setForm((prev) => ({ ...prev, nome_fantasia: e.target.value }))} />
                 </Field>
-                <Field label="CNPJ">
-                  <Input value={form.cnpj} disabled={!canEdit} maxLength={18} onChange={(e) => setForm((prev) => ({ ...prev, cnpj: formatCNPJ(e.target.value) }))} />
+                <Field label="CNPJ/CPF">
+                  <Input value={form.cnpj} disabled={!canEdit} maxLength={18} onChange={(e) => setForm((prev) => ({ ...prev, cnpj: formatCPFOrCNPJ(e.target.value) }))} />
                 </Field>
                 <div className="flex items-center justify-between rounded-md border border-[#e2e8f0] px-3 py-2">
                   <div>
