@@ -350,6 +350,21 @@ export function Inventario() {
     return matchSearch && matchSeg && matchStatus;
   });
 
+  // Segunda camada de paginação: pagina o array filtrado localmente
+  const paginatedFiltered = filtered.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  );
+
+  // Atualizar contadores baseado no array filtrado (não no total do banco)
+  // useEffect para sincronizar quando filtros mudam
+  useEffect(() => {
+    setCurrentPage(1); // Reseta para página 1 quando filtros mudam
+    setTotalItems(filtered.length);
+    setHasNextPage((currentPage - 1) * pageSize + pageSize < filtered.length);
+    setHasPreviousPage(currentPage > 1);
+  }, [filtered, currentPage, pageSize]);
+
   const toggleCaracteristica = (id: number, checked: boolean) => {
     setFormData((prev) => ({
       ...prev,
@@ -1012,7 +1027,7 @@ export function Inventario() {
             </tr>
           </thead>
           <tbody>
-            {filtered.map((est, i) => (
+            {paginatedFiltered.map((est, i) => (
               <tr key={est.id} className="border-b border-[#f1f5f9] hover:bg-[#f8fafc] transition-colors">
                 <td className="px-4 py-3 text-xs text-[#94a3b8]">{(currentPage - 1) * pageSize + i + 1}</td>
                 <td className="px-4 py-3 text-sm text-[#334155] font-medium max-w-[200px]">
