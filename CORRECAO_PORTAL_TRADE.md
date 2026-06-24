@@ -39,12 +39,16 @@ inventoryLists.forEach((items, index) => {
 // Erro silencioso na linha 114 catch block
 ```
 
-### Endpoints Incompletos
-O array `inventoryEndpoints` tinha apenas 12 Estabelecimentos, faltando 4 Independentes:
-- ✗ guias-turismo
-- ✗ rhc
-- ✗ grupos-folcloricos
-- ✗ taxi-aplicativo
+### Endpoints Incorretos
+O array `inventoryEndpoints` tinha endpoints com nomes incorretos (não correspondiam às rotas do backend):
+- ✗ `guias-turismo` (deveria ser `guias`)
+- ✗ `taxi-aplicativo` (deveria ser `taxis`)
+- ✓ `rhc` (correto)
+- ✓ `grupos-folcloricos` (correto)
+
+Backend define as rotas em `urls.py`:
+- Linha 29: `router.register(r'guias', ...)` — não `guias-turismo`
+- Linha 32: `router.register(r'taxis', ...)` — não `taxi-aplicativo`
 
 ---
 
@@ -67,19 +71,19 @@ inventoryLists.forEach((paginated, index) => {
 
 **Local:** `src/frontend/src/app/pages/PortalTrade.tsx` (linhas 126-139)
 
-### 2. Adicionar Endpoints Independentes ✅
+### 2. Adicionar e Corrigir Endpoints Independentes ✅
 
 ```typescript
 const inventoryEndpoints = [
   // ... 12 Estabelecimentos
-  "guias-turismo",      // ← Novo
+  "guias",              // ← Novo (era guias-turismo ❌)
   "rhc",                // ← Novo
   "grupos-folcloricos", // ← Novo
-  "taxi-aplicativo",    // ← Novo
+  "taxis",              // ← Novo (era taxi-aplicativo ❌)
 ];
 ```
 
-**Resultado:** Agora todas as 16 entidades são carregadas
+**Resultado:** Agora todas as 16 entidades são carregadas com endpoints corretos
 
 ### 3. Mapear Endpoints para Segmentos ✅
 
@@ -97,14 +101,14 @@ const endpointToSegment: Record<string, string> = {
   templos: "Templo Religioso",
   saude: "Serviço de Saúde",
   apoio: "Serviço de Apoio",
-  "guias-turismo": "Guia de Turismo",
+  guias: "Guia de Turismo",      // ← Corrigido: era guias-turismo
   rhc: "RHC",
   "grupos-folcloricos": "Grupo Folclórico",
-  "taxi-aplicativo": "Táxi/Aplicativo",
+  taxis: "Táxi/Aplicativo",      // ← Corrigido: era taxi-aplicativo
 };
 ```
 
-**Benefício:** Permite organização por categoria na UI
+**Benefício:** Permite organização por categoria na UI e sincronização com backend
 
 ### 4. Melhorar UX da Seleção ✅
 
