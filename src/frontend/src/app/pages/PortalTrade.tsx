@@ -7,9 +7,8 @@ import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "../components/ui/dialog";
 import { Badge } from "../components/ui/badge";
-import { Check, ChevronsUpDown, Plus, Search, Shield, Pencil, Trash2 } from "lucide-react";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "../components/ui/command";
-import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/popover";
+import { Plus, Search, Shield, Pencil, Trash2 } from "lucide-react";
+import { EstabelecimentoSelectorModal } from "../components/EstabelecimentoSelectorModal";
 
 type TradeUserRecord = {
   id: number;
@@ -103,13 +102,12 @@ export function PortalTrade() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [selectorOpen, setSelectorOpen] = useState(false);
   const [editing, setEditing] = useState<TradeUserRecord | null>(null);
   const [deleting, setDeleting] = useState<TradeUserRecord | null>(null);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<TradeForm>(emptyForm);
   const [showPassword, setShowPassword] = useState(false);
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const [establishmentSearch, setEstablishmentSearch] = useState("");
 
   useEffect(() => {
     const load = async () => {
@@ -179,30 +177,9 @@ export function PortalTrade() {
     });
   }, [users, search]);
 
-  const filteredEstablishments = useMemo(() => {
-    const term = establishmentSearch.toLowerCase();
-    const filtered = establishments.filter((item) =>
-      item.label.toLowerCase().includes(term) ||
-      item.segmento.toLowerCase().includes(term)
-    );
-
-    const grouped: Record<string, EstablishmentOption[]> = {};
-    filtered.forEach((item) => {
-      if (!grouped[item.segmento]) {
-        grouped[item.segmento] = [];
-      }
-      grouped[item.segmento].push(item);
-    });
-
-    return Object.entries(grouped)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([segment, items]) => ({ segment, items }));
-  }, [establishments, establishmentSearch]);
-
   const openCreate = () => {
     setEditing(null);
     setForm(emptyForm);
-    setEstablishmentSearch("");
     setDialogOpen(true);
   };
 
@@ -217,7 +194,6 @@ export function PortalTrade() {
       establishment_id: item.estabelecimento?.id ? String(item.estabelecimento.id) : "",
       nivel_permissao: (item.estabelecimento?.nivel_permissao as TradeForm["nivel_permissao"]) || "visualizador",
     });
-    setEstablishmentSearch(item.estabelecimento?.nome_fantasia || "");
     setDialogOpen(true);
   };
 
@@ -372,54 +348,15 @@ export function PortalTrade() {
               </div>
             </Field>
             <Field label="Estabelecimento">
-              <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" role="combobox" className="h-10 w-full justify-between font-normal">
-                    <span className="truncate">
-                      {form.establishment_id
-                        ? establishments.find((item) => String(item.id) === form.establishment_id)?.label
-                        : "Pesquisar e selecionar"}
-                    </span>
-                    <ChevronsUpDown className="ml-2 h-4 w-4 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[420px] p-0" align="start">
-                  <Command>
-                    <CommandInput
-                      placeholder="Buscar estabelecimento ou segmento..."
-                      value={establishmentSearch}
-                      onValueChange={setEstablishmentSearch}
-                    />
-                    <CommandList>
-                      {filteredEstablishments.length === 0 ? (
-                        <CommandEmpty>Nenhum estabelecimento encontrado.</CommandEmpty>
-                      ) : (
-                        filteredEstablishments.map(({ segment, items }) => (
-                          <CommandGroup key={segment} heading={segment}>
-                            {items.map((item) => (
-                              <CommandItem
-                                key={`${item.endpoint}-${item.id}`}
-                                value={item.label}
-                                onSelect={() => {
-                                  setForm((prev) => ({ ...prev, establishment_id: String(item.id) }));
-                                  setPickerOpen(false);
-                                  setEstablishmentSearch(item.label.split(" — ")[0]);
-                                }}
-                              >
-                                <Check className={`mr-2 h-4 w-4 ${String(item.id) === form.establishment_id ? "opacity-100" : "opacity-0"}`} />
-                                <div className="flex flex-col">
-                                  <span>{item.label.split(" — ")[0]}</span>
-                                  <span className="text-xs text-[#94a3b8]">ID {item.id}</span>
-                                </div>
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
-                        ))
-                      )}
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
+              <Button
+                variant="outline"
+                onClick={() => setSelectorOpen(true)}
+                className="h-10 w-full justify-start font-normal text-[#334155]"
+              >
+                {form.establishment_id
+                  ? establishments.find((item) => String(item.id) === form.establishment_id)?.label?.split(" — ")[0] || "Selecionar"
+                  : "Pesquisar e selecionar"}
+              </Button>
             </Field>
             <Field label="Permissão">
               <select value={form.nivel_permissao} onChange={(e) => setForm((p) => ({ ...p, nivel_permissao: e.target.value as TradeForm["nivel_permissao"] }))} className="h-10 w-full rounded-md border border-[#e2e8f0] bg-white px-3 text-sm">
@@ -453,6 +390,17 @@ export function PortalTrade() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <EstabelecimentoSelectorModal
+        open={selectorOpen}
+        onOpenChange={setSelectorOpen}
+        establishments={establishments}
+        selectedId={form.establishment_id ? Number(form.establishment_id) : undefined}
+        onSelect={(est) => {
+          setForm((prev) => ({ ...prev, establishment_id: String(est.id) }));
+          setSelectorOpen(false);
+        }}
+      />
     </div>
   );
 }
