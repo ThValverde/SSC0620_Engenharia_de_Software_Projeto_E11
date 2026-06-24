@@ -115,31 +115,47 @@ export function PortalTrade() {
     const load = async () => {
       try {
         setLoading(true);
-        const [tradeUsers, inventoryLists] = await Promise.all([
+        console.log("Carregando Portal Trade...");
+        const [tradeUsers, inventoryResults] = await Promise.all([
           apiService.listTradeUsers(),
-          Promise.all(inventoryEndpoints.map((endpoint) => apiService.listInventory(endpoint, 100, 1))),
+          Promise.allSettled(inventoryEndpoints.map((endpoint) => apiService.listInventory(endpoint, 100, 1))),
         ]);
 
+        console.log("Trade Users carregados:", tradeUsers.length);
         setUsers(tradeUsers as TradeUserRecord[]);
 
         const options: EstablishmentOption[] = [];
-        inventoryLists.forEach((paginated, index) => {
-          const endpoint = inventoryEndpoints[index];
-          const segmento = endpointToSegment[endpoint];
-          const items = paginated.results || [];
+        let successCount = 0;
+        let failCount = 0;
 
-          items.forEach((item: any) => {
-            options.push({
-              id: Number(item.id),
-              endpoint,
-              segmento,
-              label: `${item.nome_fantasia || item.razao_social || `ID ${item.id}`} — ${segmento}`,
+        inventoryResults.forEach((result, index) => {
+          if (result.status === "fulfilled") {
+            const paginated = result.value;
+            const endpoint = inventoryEndpoints[index];
+            const segmento = endpointToSegment[endpoint];
+            const items = paginated.results || [];
+            successCount++;
+
+            console.log(`${endpoint}: ${items.length} itens carregados`);
+            items.forEach((item: any) => {
+              options.push({
+                id: Number(item.id),
+                endpoint,
+                segmento,
+                label: `${item.nome_fantasia || item.razao_social || `ID ${item.id}`} — ${segmento}`,
+              });
             });
-          });
+          } else if (result.status === "rejected") {
+            const endpoint = inventoryEndpoints[index];
+            failCount++;
+            console.warn(`❌ Falha ao carregar ${endpoint}:`, result.reason);
+          }
         });
+
+        console.log(`Estabelecimentos carregados: ${options.length} (${successCount} endpoints OK, ${failCount} falharam)`);
         setEstablishments(options);
       } catch (error) {
-        console.error(error);
+        console.error("Erro fatal ao carregar Portal Trade:", error);
         toast.error("Não foi possível carregar o portal do trade.");
       } finally {
         setLoading(false);
@@ -375,7 +391,6 @@ export function PortalTrade() {
                       onValueChange={setEstablishmentSearch}
                     />
                     <CommandList>
-                      <CommandEmpty>Nenhum estabelecimento encontrado.</CommandEmpty>
                       {filteredEstablishments.length === 0 ? (
                         <CommandEmpty>Nenhum estabelecimento encontrado.</CommandEmpty>
                       ) : (
