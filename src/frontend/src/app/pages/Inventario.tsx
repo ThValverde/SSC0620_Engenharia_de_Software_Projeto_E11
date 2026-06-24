@@ -6,6 +6,7 @@ import {
   FileText, Building,
 } from "lucide-react";
 import { apiService } from "../services/api";
+import { formatCNPJ, formatCEP, formatPhone, toNumberOrNull } from "../utils/formatters";
 import { useAuth } from "../contexts/AuthContext";
 import { CatalogTreeEditor, type CatalogSection } from "../components/CatalogTreeEditor";
 
@@ -152,6 +153,10 @@ interface FormData {
   sustentabilidade: OdsFormItem[];
   caracteristicasSelecionadas: number[];
   metricas: Array<{ id: number; valor: string }>;
+  // Extras for specific segmentos (RHC, Serviço de Apoio)
+  tipoServico?: string; // maps to tipo_servico for Serviço de Apoio
+  numeracaoRHC?: string; // maps to numeracao_rhc for RHC
+  tipoImovelRHC?: string; // maps to tipo_imovel for RHC
 }
 
 const buildOdsItems = (catalog: OdsCatalogItem[], current: OdsFormItem[] = []): OdsFormItem[] => {
@@ -176,6 +181,10 @@ const createEmptyForm = (catalog: OdsCatalogItem[] = []): FormData => ({
   sustentabilidade: buildOdsItems(catalog),
   caracteristicasSelecionadas: [],
   metricas: [],
+  // Defaults for specific segmentos
+  tipoServico: "",
+  numeracaoRHC: "",
+  tipoImovelRHC: "",
 });
 
 type TabKey = "cadastrais" | "infra";
@@ -201,6 +210,7 @@ export function Inventario() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [odsCatalog, setOdsCatalog] = useState<OdsCatalogItem[]>([]);
   const [catalogTree, setCatalogTree] = useState<CatalogSection[]>([]);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     const fetchInventario = async () => {
@@ -501,6 +511,21 @@ export function Inventario() {
       payload.acessibilidade = data.banheirosPCD || data.rampaAcesso;
     }
 
+    // Serviço de Apoio requires `tipo_servico` (choice in model)
+    if (data.segmento === "Serviço de Apoio") {
+      if (data.tipoServico) payload.tipo_servico = data.tipoServico;
+      if (data.capacidade) payload.observacao = data.capacidade;
+    }
+
+    // RHC (registro habitacional) requires numeracao_rhc and tipo_imovel
+    if (data.segmento === "RHC") {
+      if (data.numeracaoRHC) payload.numeracao_rhc = data.numeracaoRHC;
+      if (data.tipoImovelRHC) payload.tipo_imovel = data.tipoImovelRHC;
+      // map common fields if present
+      if (data.leitos) payload.quantidade_leitos = Number(data.leitos);
+      if (data.capacidade) payload.capacidade_maxima = Number(data.capacidade);
+    }
+
     payload.sustentabilidade = data.sustentabilidade.map((item) => ({
       id: item.id,
       ativo: item.ativo,
@@ -518,6 +543,7 @@ export function Inventario() {
   const handleSave = async () => {
     if (!formData.razaoSocial || !formData.segmento) return;
 
+    setSaving(true);
     try {
       const isEdit = editId !== null;
       const endpoint = isEdit ? editingEndpoint : segmentMapping[formData.segmento];
@@ -549,9 +575,25 @@ export function Inventario() {
       setFormData(createEmptyForm(odsCatalog));
       setEditId(null);
       setEditingEndpoint(null);
-    } catch (error) {
-      console.error("Erro na requisição:", error);
-      toast.error("Não foi possível salvar o estabelecimento.");
+    } catch (error: any) {
+      // Provide detailed diagnostics for failures: network vs server vs validation
+      console.error("Erro na requisição ao salvar estabelecimento:", error);
+      const resp = error?.response;
+      if (resp) {
+        const status = resp.status;
+        const data = resp.data;
+        console.error("Resposta do servidor:", status, data);
+        toast.error(`Erro servidor ${status}: ${typeof data === 'string' ? data : JSON.stringify(data)}`);
+      } else if (error?.request) {
+        // Request made but no response
+        console.error("Requisição enviada, sem resposta do servidor:", error.request);
+        toast.error("Sem resposta do servidor. Verifique se o backend está rodando e acessível.");
+      } else {
+        // Something happened setting up the request
+        toast.error(error?.message || "Erro desconhecido ao tentar salvar.");
+      }
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -568,6 +610,8 @@ export function Inventario() {
 
   const isHospedagem = formData.segmento === "Meio de Hospedagem";
   const isAtrativo = formData.segmento === "Atrativo Turístico";
+  const isServicoApoio = formData.segmento === "Serviço de Apoio";
+  const isRHC = formData.segmento === "RHC";
 
   return (
     <div className="p-6 space-y-5">
@@ -828,9 +872,10 @@ export function Inventario() {
                     <input
                       type="text"
                       value={formData.cnpj}
-                      onChange={(e) => setFormData({ ...formData, cnpj: e.target.value })}
+                      onChange={(e) => setFormData({ ...formData, cnpj: formatCNPJ(e.target.value) })}
                       className="w-full px-3 py-2 text-sm border border-[#e2e8f0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1a6fbf]/30 focus:border-[#1a6fbf] font-mono"
                       placeholder="00.000.000/0001-00"
+                      maxLength={18}
                     />
                   </div>
                   <div className="col-span-2">
@@ -857,19 +902,22 @@ export function Inventario() {
                     <input
                       type="text"
                       value={formData.cep}
-                      onChange={(e) => setFormData({ ...formData, cep: e.target.value })}
+                      onChange={(e) => setFormData({ ...formData, cep: formatCEP(e.target.value) })}
                       className="w-full px-3 py-2 text-sm border border-[#e2e8f0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1a6fbf]/30 focus:border-[#1a6fbf] font-mono"
                       placeholder="00000-000"
+                      maxLength={9}
                     />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-[#64748b] mb-1">Telefone</label>
                     <input
-                      type="text"
+                      type="tel"
+                      inputMode="tel"
                       value={formData.telefone}
-                      onChange={(e) => setFormData({ ...formData, telefone: e.target.value })}
+                      onChange={(e) => setFormData({ ...formData, telefone: formatPhone(e.target.value) })}
                       className="w-full px-3 py-2 text-sm border border-[#e2e8f0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1a6fbf]/30 focus:border-[#1a6fbf]"
                       placeholder="(17) 99999-9999"
+                      maxLength={15}
                     />
                   </div>
                   <div>
@@ -1024,6 +1072,88 @@ export function Inventario() {
                     </div>
                   )}
 
+                  {isServicoApoio && (
+                    <div className="bg-slate-50 border border-slate-100 rounded-xl p-4">
+                      <h4 className="text-[#0c2340] mb-3">Serviço de Apoio — Tipo</h4>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-medium text-[#64748b] mb-1">Tipo de Serviço</label>
+                          <select
+                            value={formData.tipoServico}
+                            onChange={(e) => setFormData({ ...formData, tipoServico: e.target.value })}
+                            className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-400/30 focus:border-slate-400 bg-white text-[#334155]"
+                          >
+                            <option value="">Selecione...</option>
+                            <option value="cabeleireiro_barbeiro">Cabeleireiro e Barbeiro</option>
+                            <option value="clinica_odontologica">Clínica Odontológica</option>
+                            <option value="clinica_medica">Clínica Médica</option>
+                            <option value="clinica_veterinaria">Clínica Veterinária</option>
+                            <option value="educacao">Educação</option>
+                            <option value="farmacia">Farmácia e Drogaria</option>
+                            <option value="lavanderia">Lavanderia</option>
+                            <option value="posto_combustivel">Posto de Combustível</option>
+                            <option value="mecanica">Serviços Automotivos (Mecânica)</option>
+                            <option value="servico_seguranca">Serviço de Segurança</option>
+                            <option value="supermercado">Supermercado</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-[#64748b] mb-1">Observação</label>
+                          <input
+                            type="text"
+                            value={formData.capacidade}
+                            onChange={(e) => setFormData({ ...formData, capacidade: e.target.value })}
+                            className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-400/30 focus:border-slate-400 bg-white"
+                            placeholder="Observações sobre o serviço"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {isRHC && (
+                    <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4">
+                      <h4 className="text-[#0c2340] mb-3">RHC — Identificação</h4>
+                      <div className="grid grid-cols-3 gap-3">
+                        <div>
+                          <label className="block text-xs font-medium text-[#64748b] mb-1">Numeração RHC</label>
+                          <input
+                            type="text"
+                            value={formData.numeracaoRHC}
+                            onChange={(e) => setFormData({ ...formData, numeracaoRHC: e.target.value })}
+                            className="w-full px-3 py-2 text-sm border border-emerald-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-400/30 focus:border-emerald-400 bg-white"
+                            placeholder="Ex: RHC-0001"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-[#64748b] mb-1">Tipo de Imóvel</label>
+                          <select
+                            value={formData.tipoImovelRHC}
+                            onChange={(e) => setFormData({ ...formData, tipoImovelRHC: e.target.value })}
+                            className="w-full px-3 py-2 text-sm border border-emerald-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-400/30 focus:border-emerald-400 bg-white text-[#334155]"
+                          >
+                            <option value="">Selecione...</option>
+                            <option value="apartamento">Apartamento</option>
+                            <option value="casa">Casa</option>
+                            <option value="chale">Chalé</option>
+                            <option value="condominio_temporada">Condomínio de temporada</option>
+                            <option value="outros">Outros</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-[#64748b] mb-1">Leitos</label>
+                          <input
+                            type="number"
+                            value={formData.leitos}
+                            onChange={(e) => setFormData({ ...formData, leitos: e.target.value })}
+                            className="w-full px-3 py-2 text-sm border border-emerald-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-400/30 focus:border-emerald-400 bg-white"
+                            placeholder="0"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {formData.segmento && (
                     <CatalogTreeEditor
                       tree={catalogTree}
@@ -1119,10 +1249,15 @@ export function Inventario() {
                 </button>
                 <button
                   onClick={handleSave}
-                  disabled={!formData.razaoSocial || !formData.segmento}
+                  disabled={!formData.razaoSocial || !formData.segmento || saving}
                   className="px-5 py-2 text-sm bg-[#1a6fbf] hover:bg-[#1560a8] text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {editId ? "Salvar Alterações" : "Cadastrar Estabelecimento"}
+                  {saving ? (
+                    <>
+                      <span className="animate-spin inline-block mr-2 h-4 w-4 border-2 border-white border-transparent border-t-white rounded-full" />
+                      Salvando...
+                    </>
+                  ) : editId ? "Salvar Alterações" : "Cadastrar Estabelecimento"}
                 </button>
               </div>
             </div>

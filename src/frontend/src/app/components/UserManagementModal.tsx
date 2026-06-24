@@ -45,6 +45,7 @@ export function UserManagementModal() {
     last_name: '',
     userType: 'Trade',
   });
+  const [showPassword, setShowPassword] = useState(false);
 
   // Check if user can access user management
   if (!canAccessModule('users')) {

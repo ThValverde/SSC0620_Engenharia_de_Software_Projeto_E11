@@ -94,7 +94,7 @@ export function UsersPage() {
   const [deleteTarget, setDeleteTarget] = useState<ManagedUser | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const [form, setForm] = useState<UserFormState>(emptyForm);
+  const [form, setForm] = useState<UserFormState>(emptyForm); // form may contain showPassword field for password toggle in-place
 
   const canManageUsers = canAccessModule("users");
 
@@ -414,12 +414,15 @@ export function UsersPage() {
             </div>
             <div className="space-y-2 col-span-2">
               <Label htmlFor="password">{editingUser ? "Nova senha (opcional)" : "Senha"}</Label>
-              <Input
-                id="password"
-                type="password"
-                value={form.password}
-                onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))}
-              />
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={form.showPassword ? 'text' : 'password'}
+                  value={form.password}
+                  onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))}
+                />
+                <button type="button" onClick={() => setForm((p) => ({ ...p, showPassword: !p.showPassword }))} className="absolute right-2 top-1/2 -translate-y-1/2 text-sm text-[#64748b]">{form.showPassword ? 'Ocultar' : 'Mostrar'}</button>
+              </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="role">Papel</Label>

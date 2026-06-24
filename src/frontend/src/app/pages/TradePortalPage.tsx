@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { apiService } from "../services/api";
 import { useAuth } from "../contexts/AuthContext";
 import { CatalogTreeEditor, type CatalogSection } from "../components/CatalogTreeEditor";
+import { formatCNPJ, formatCEP, formatPhone } from "../utils/formatters";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Input } from "../components/ui/input";
@@ -275,9 +276,14 @@ export function TradePortalPage() {
   };
 
   const updateContact = (index: number, field: keyof ContactForm, value: string) => {
+    let newValue = value;
+    if (field === "telefone") {
+      // keep formatted phone for display
+      newValue = formatPhone(value);
+    }
     setForm((prev) => ({
       ...prev,
-      contatos: prev.contatos.map((contato, idx) => (idx === index ? { ...contato, [field]: value } : contato)),
+      contatos: prev.contatos.map((contato, idx) => (idx === index ? { ...contato, [field]: newValue } : contato)),
     }));
   };
 
@@ -455,7 +461,7 @@ export function TradePortalPage() {
                   <Input value={form.nome_fantasia} disabled={!canEdit} onChange={(e) => setForm((prev) => ({ ...prev, nome_fantasia: e.target.value }))} />
                 </Field>
                 <Field label="CNPJ">
-                  <Input value={form.cnpj} disabled={!canEdit} onChange={(e) => setForm((prev) => ({ ...prev, cnpj: e.target.value }))} />
+                  <Input value={form.cnpj} disabled={!canEdit} maxLength={18} onChange={(e) => setForm((prev) => ({ ...prev, cnpj: formatCNPJ(e.target.value) }))} />
                 </Field>
                 <div className="flex items-center justify-between rounded-md border border-[#e2e8f0] px-3 py-2">
                   <div>
@@ -473,7 +479,7 @@ export function TradePortalPage() {
 
               <div className="grid gap-4 md:grid-cols-3">
                 <Field label="CEP">
-                  <Input value={form.endereco.cep} disabled={!canEdit} onChange={(e) => setForm((prev) => ({ ...prev, endereco: { ...prev.endereco, cep: e.target.value } }))} />
+                  <Input value={form.endereco.cep} disabled={!canEdit} maxLength={9} onChange={(e) => setForm((prev) => ({ ...prev, endereco: { ...prev.endereco, cep: formatCEP(e.target.value) } }))} />
                 </Field>
                 <Field label="Rua">
                   <Input value={form.endereco.rua} disabled={!canEdit} onChange={(e) => setForm((prev) => ({ ...prev, endereco: { ...prev.endereco, rua: e.target.value } }))} />
@@ -509,7 +515,7 @@ export function TradePortalPage() {
                 <div className="space-y-3">
                   {form.contatos.map((contato, index) => (
                     <div key={index} className="grid gap-3 rounded-lg border border-[#e2e8f0] p-3 md:grid-cols-[1fr_1fr_1fr_auto]">
-                      <Input placeholder="Telefone" value={contato.telefone} disabled={!canEdit} onChange={(e) => updateContact(index, "telefone", e.target.value)} />
+                      <Input placeholder="Telefone" value={contato.telefone} disabled={!canEdit} maxLength={15} inputMode="tel" onChange={(e) => updateContact(index, "telefone", e.target.value)} />
                       <Input placeholder="E-mail" value={contato.email} disabled={!canEdit} onChange={(e) => updateContact(index, "email", e.target.value)} />
                       <Input placeholder="Cargo" value={contato.cargo} disabled={!canEdit} onChange={(e) => updateContact(index, "cargo", e.target.value)} />
                       <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-600" disabled={!canEdit} onClick={() => removeContact(index)}>

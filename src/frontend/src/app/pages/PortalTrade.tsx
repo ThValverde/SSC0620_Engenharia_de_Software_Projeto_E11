@@ -83,6 +83,7 @@ export function PortalTrade() {
   const [deleting, setDeleting] = useState<TradeUserRecord | null>(null);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<TradeForm>(emptyForm);
+  const [showPassword, setShowPassword] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [establishmentSearch, setEstablishmentSearch] = useState("");
 
@@ -305,7 +306,12 @@ export function PortalTrade() {
             <Field label="Email"><Input type="email" value={form.email} onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))} /></Field>
             <Field label="Nome"><Input value={form.nome} onChange={(e) => setForm((p) => ({ ...p, nome: e.target.value }))} /></Field>
             <Field label="Apelido"><Input value={form.apelido} onChange={(e) => setForm((p) => ({ ...p, apelido: e.target.value }))} /></Field>
-            <Field label={editing ? "Nova senha (opcional)" : "Senha"}><Input type="password" value={form.password} onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))} /></Field>
+            <Field label={editing ? "Nova senha (opcional)" : "Senha"}>
+              <div className="relative">
+                <Input type={showPassword ? 'text' : 'password'} value={form.password} onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))} className="pr-10" />
+                <button type="button" onClick={() => setShowPassword((s) => !s)} className="absolute right-2 top-1/2 -translate-y-1/2 text-sm text-[#64748b]">{showPassword ? 'Ocultar' : 'Mostrar'}</button>
+              </div>
+            </Field>
             <Field label="Estabelecimento">
               <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
                 <PopoverTrigger asChild>
