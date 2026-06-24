@@ -60,7 +60,7 @@ export function EstabelecimentoSelectorModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl">
+      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Selecionar Estabelecimento</DialogTitle>
           <DialogDescription>
@@ -70,11 +70,11 @@ export function EstabelecimentoSelectorModal({
 
         <div className="space-y-4">
           {/* Filtros */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
+          <div className="grid grid-cols-3 gap-4">
+            <div className="col-span-2 space-y-2">
               <label className="text-sm font-medium text-[#64748b]">Buscar</label>
               <div className="relative">
-                <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94a3b8]" />
+                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94a3b8]" />
                 <Input
                   className="pl-9"
                   placeholder="Nome, CNPJ, CPF..."
@@ -108,62 +108,69 @@ export function EstabelecimentoSelectorModal({
           </div>
 
           {/* Tabela */}
-          <div className="border border-[#e2e8f0] rounded-lg overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-[#f8fafc] border-b border-[#e2e8f0]">
-                <tr>
-                  <th className="text-left px-4 py-3 text-xs uppercase text-[#64748b]">Nome</th>
-                  <th className="text-left px-4 py-3 text-xs uppercase text-[#64748b]">Segmento</th>
-                  <th className="text-left px-4 py-3 text-xs uppercase text-[#64748b]">Tipo</th>
-                  <th className="text-center px-4 py-3 text-xs uppercase text-[#64748b]">Ação</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paginatedFiltered.length === 0 ? (
+          <div className="border border-[#e2e8f0] rounded-lg overflow-hidden bg-white">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-[#f8fafc] border-b border-[#e2e8f0] sticky top-0">
                   <tr>
-                    <td colSpan={4} className="px-4 py-6 text-center text-[#94a3b8]">
-                      Nenhum estabelecimento encontrado
-                    </td>
+                    <th className="text-left px-6 py-4 text-xs font-semibold uppercase text-[#64748b] w-40">Nome</th>
+                    <th className="text-left px-6 py-4 text-xs font-semibold uppercase text-[#64748b] w-32">Segmento</th>
+                    <th className="text-left px-6 py-4 text-xs font-semibold uppercase text-[#64748b] w-32">Tipo</th>
+                    <th className="text-center px-6 py-4 text-xs font-semibold uppercase text-[#64748b] w-28">Ação</th>
                   </tr>
-                ) : (
-                  paginatedFiltered.map((est) => (
-                    <tr
-                      key={`${est.endpoint}-${est.id}`}
-                      className="border-b border-[#f1f5f9] hover:bg-[#f8fafc]"
-                    >
-                      <td className="px-4 py-3">
-                        <div className="font-medium text-[#0c2340]">
-                          {est.label.split(" — ")[0]}
-                        </div>
-                        <div className="text-xs text-[#94a3b8]">ID {est.id}</div>
-                      </td>
-                      <td className="px-4 py-3 text-[#334155]">{est.segmento}</td>
-                      <td className="px-4 py-3 text-[#334155] text-xs">{est.endpoint}</td>
-                      <td className="px-4 py-3 text-center">
-                        {selectedId === est.id ? (
-                          <Check size={18} className="mx-auto text-green-600" />
-                        ) : (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleSelect(est)}
-                            className="text-xs"
-                          >
-                            Selecionar
-                          </Button>
-                        )}
+                </thead>
+                <tbody className="divide-y divide-[#f1f5f9]">
+                  {paginatedFiltered.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="px-6 py-8 text-center text-[#94a3b8]">
+                        Nenhum estabelecimento encontrado
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                  ) : (
+                    paginatedFiltered.map((est) => (
+                      <tr
+                        key={`${est.endpoint}-${est.id}`}
+                        className="hover:bg-[#f8fafc] transition-colors"
+                      >
+                        <td className="px-6 py-4">
+                          <div className="font-medium text-[#0c2340]">
+                            {est.label.split(" — ")[0]}
+                          </div>
+                          <div className="text-xs text-[#94a3b8] mt-1">ID {est.id}</div>
+                        </td>
+                        <td className="px-6 py-4 text-[#334155]">{est.segmento}</td>
+                        <td className="px-6 py-4 text-[#64748b] text-xs font-mono bg-[#f1f5f9] rounded">
+                          {est.endpoint}
+                        </td>
+                        <td className="px-6 py-4 text-center">
+                          {selectedId === est.id ? (
+                            <div className="flex items-center justify-center gap-2">
+                              <Check size={18} className="text-green-600" />
+                              <span className="text-xs text-green-600 font-medium">Selecionado</span>
+                            </div>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="default"
+                              onClick={() => handleSelect(est)}
+                              className="bg-[#1a6fbf] hover:bg-[#1560a8] text-xs"
+                            >
+                              Selecionar
+                            </Button>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           {/* Paginação */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-between">
-              <div className="text-sm text-[#64748b]">
+            <div className="flex items-center justify-between bg-[#f8fafc] p-4 rounded-lg">
+              <div className="text-sm text-[#64748b] font-medium">
                 Página {currentPage} de {totalPages} ({filtered.length} total)
               </div>
               <div className="flex gap-2">
@@ -172,6 +179,7 @@ export function EstabelecimentoSelectorModal({
                   size="sm"
                   onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
                   disabled={currentPage === 1}
+                  className="text-xs"
                 >
                   ← Anterior
                 </Button>
@@ -180,6 +188,7 @@ export function EstabelecimentoSelectorModal({
                   size="sm"
                   onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
                   disabled={currentPage === totalPages}
+                  className="text-xs"
                 >
                   Próxima →
                 </Button>
@@ -188,7 +197,7 @@ export function EstabelecimentoSelectorModal({
           )}
 
           {/* Botões de Ação */}
-          <div className="flex justify-end gap-3">
+          <div className="flex justify-end gap-3 pt-4 border-t border-[#e2e8f0]">
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               Cancelar
             </Button>
