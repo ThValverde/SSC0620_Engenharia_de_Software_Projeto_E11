@@ -34,6 +34,7 @@ type EstablishmentOption = {
   id: number;
   endpoint: string;
   label: string;
+  segmento: string;
 };
 
 type TradeForm = {
@@ -69,7 +70,30 @@ const inventoryEndpoints = [
   "templos",
   "saude",
   "apoio",
+  "guias-turismo",
+  "rhc",
+  "grupos-folcloricos",
+  "taxi-aplicativo",
 ];
+
+const endpointToSegment: Record<string, string> = {
+  hospedagens: "Meio de Hospedagem",
+  alimentacao: "Alimentação",
+  atrativos: "Atrativo Turístico",
+  "espacos-eventos": "Espaço de Evento",
+  agencias: "Agência de Viagem",
+  "organizadores-eventos": "Organizador de Evento",
+  "locadoras-transporte": "Transporte Turístico",
+  artesanato: "Artesanato",
+  bancos: "Banco",
+  templos: "Templo Religioso",
+  saude: "Serviço de Saúde",
+  apoio: "Serviço de Apoio",
+  "guias-turismo": "Guia de Turismo",
+  rhc: "RHC",
+  "grupos-folcloricos": "Grupo Folclórico",
+  "taxi-aplicativo": "Táxi/Aplicativo",
+};
 
 export function PortalTrade() {
   const { isTradeUser, isLoading } = useAuth();
@@ -93,19 +117,23 @@ export function PortalTrade() {
         setLoading(true);
         const [tradeUsers, inventoryLists] = await Promise.all([
           apiService.listTradeUsers(),
-          Promise.all(inventoryEndpoints.map((endpoint) => apiService.listInventory(endpoint))),
+          Promise.all(inventoryEndpoints.map((endpoint) => apiService.listInventory(endpoint, 100, 1))),
         ]);
 
         setUsers(tradeUsers as TradeUserRecord[]);
 
         const options: EstablishmentOption[] = [];
-        inventoryLists.forEach((items, index) => {
+        inventoryLists.forEach((paginated, index) => {
           const endpoint = inventoryEndpoints[index];
+          const segmento = endpointToSegment[endpoint];
+          const items = paginated.results || [];
+
           items.forEach((item: any) => {
             options.push({
               id: Number(item.id),
               endpoint,
-              label: `${item.nome_fantasia || item.razao_social || `ID ${item.id}`} — ${endpoint}`,
+              segmento,
+              label: `${item.nome_fantasia || item.razao_social || `ID ${item.id}`} — ${segmento}`,
             });
           });
         });
@@ -137,7 +165,22 @@ export function PortalTrade() {
 
   const filteredEstablishments = useMemo(() => {
     const term = establishmentSearch.toLowerCase();
-    return establishments.filter((item) => item.label.toLowerCase().includes(term));
+    const filtered = establishments.filter((item) =>
+      item.label.toLowerCase().includes(term) ||
+      item.segmento.toLowerCase().includes(term)
+    );
+
+    const grouped: Record<string, EstablishmentOption[]> = {};
+    filtered.forEach((item) => {
+      if (!grouped[item.segmento]) {
+        grouped[item.segmento] = [];
+      }
+      grouped[item.segmento].push(item);
+    });
+
+    return Object.entries(grouped)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([segment, items]) => ({ segment, items }));
   }, [establishments, establishmentSearch]);
 
   const openCreate = () => {
@@ -327,31 +370,37 @@ export function PortalTrade() {
                 <PopoverContent className="w-[420px] p-0" align="start">
                   <Command>
                     <CommandInput
-                      placeholder="Buscar estabelecimento..."
+                      placeholder="Buscar estabelecimento ou segmento..."
                       value={establishmentSearch}
                       onValueChange={setEstablishmentSearch}
                     />
                     <CommandList>
                       <CommandEmpty>Nenhum estabelecimento encontrado.</CommandEmpty>
-                      <CommandGroup>
-                        {filteredEstablishments.map((item) => (
-                          <CommandItem
-                            key={`${item.endpoint}-${item.id}`}
-                            value={item.label}
-                            onSelect={() => {
-                              setForm((prev) => ({ ...prev, establishment_id: String(item.id) }));
-                              setPickerOpen(false);
-                              setEstablishmentSearch(item.label);
-                            }}
-                          >
-                            <Check className={`mr-2 h-4 w-4 ${String(item.id) === form.establishment_id ? "opacity-100" : "opacity-0"}`} />
-                            <div className="flex flex-col">
-                              <span>{item.label}</span>
-                              <span className="text-xs text-[#94a3b8]">ID {item.id}</span>
-                            </div>
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
+                      {filteredEstablishments.length === 0 ? (
+                        <CommandEmpty>Nenhum estabelecimento encontrado.</CommandEmpty>
+                      ) : (
+                        filteredEstablishments.map(({ segment, items }) => (
+                          <CommandGroup key={segment} heading={segment}>
+                            {items.map((item) => (
+                              <CommandItem
+                                key={`${item.endpoint}-${item.id}`}
+                                value={item.label}
+                                onSelect={() => {
+                                  setForm((prev) => ({ ...prev, establishment_id: String(item.id) }));
+                                  setPickerOpen(false);
+                                  setEstablishmentSearch(item.label.split(" — ")[0]);
+                                }}
+                              >
+                                <Check className={`mr-2 h-4 w-4 ${String(item.id) === form.establishment_id ? "opacity-100" : "opacity-0"}`} />
+                                <div className="flex flex-col">
+                                  <span>{item.label.split(" — ")[0]}</span>
+                                  <span className="text-xs text-[#94a3b8]">ID {item.id}</span>
+                                </div>
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        ))
+                      )}
                     </CommandList>
                   </Command>
                 </PopoverContent>
