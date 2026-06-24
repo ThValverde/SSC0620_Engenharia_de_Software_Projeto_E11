@@ -1078,8 +1078,23 @@ class TaxiAplicativo(RegistroInventario):
     TIPO_REGISTRO = RegistroInventario.Tipo.TAXI_APLICATIVO
     CADASTUR_EXIGENCIA = ExigenciaCadastur.NAO_SE_APLICA
 
+    class TipoDocumento(models.TextChoices):
+        CPF = "cpf", "CPF"
+        CNPJ = "cnpj", "CNPJ"
+
     nome = models.CharField(max_length=255, verbose_name="Nome do taxista")
     empresa = models.CharField(max_length=255, blank=True)
+    tipo_documento = models.CharField(
+        max_length=4,
+        choices=TipoDocumento.choices,
+        blank=True,
+        help_text="Tipo de documento: CPF (pessoa física) ou CNPJ (empresa/associação)",
+    )
+    documento = models.CharField(
+        max_length=14,
+        blank=True,
+        help_text="CPF (11 dígitos) ou CNPJ (14 dígitos), sem máscara",
+    )
     qtde_pontos = models.PositiveIntegerField(null=True, blank=True)
     qtde_veiculos = models.PositiveIntegerField(null=True, blank=True)
     credencial_alvara = models.CharField(max_length=60, blank=True)

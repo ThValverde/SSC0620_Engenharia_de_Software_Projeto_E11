@@ -573,6 +573,12 @@ export function Inventario() {
       if (data.categoria) payload.classificacao_grupo = data.categoria;
     } else if (data.segmento === "Táxi/Aplicativo") {
       payload.nome = data.nomeFantasia || data.razaoSocial;
+      payload.empresa = data.razaoSocial || "";
+      const cpfOrCnpj = documentValue;
+      if (cpfOrCnpj) {
+        payload.tipo_documento = cpfOrCnpj.length === 11 ? "cpf" : "cnpj";
+        payload.documento = cpfOrCnpj;
+      }
     } else {
       // Estabelecimento-based entities
       payload.razao_social = data.razaoSocial;
@@ -795,7 +801,7 @@ export function Inventario() {
               <th className="text-left px-4 py-3 text-xs font-semibold text-[#64748b] uppercase tracking-wider w-8">#</th>
               <th className="text-left px-4 py-3 text-xs font-semibold text-[#64748b] uppercase tracking-wider">Razão Social</th>
               <th className="text-left px-4 py-3 text-xs font-semibold text-[#64748b] uppercase tracking-wider">Nome Fantasia</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-[#64748b] uppercase tracking-wider">CNPJ</th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-[#64748b] uppercase tracking-wider">CNPJ/CPF</th>
               <th className="text-left px-4 py-3 text-xs font-semibold text-[#64748b] uppercase tracking-wider">Segmento</th>
               <th className="text-left px-4 py-3 text-xs font-semibold text-[#64748b] uppercase tracking-wider">Status</th>
               <th className="text-center px-4 py-3 text-xs font-semibold text-[#64748b] uppercase tracking-wider">Ações</th>
