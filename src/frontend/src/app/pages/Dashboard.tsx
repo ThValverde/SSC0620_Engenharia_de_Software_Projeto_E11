@@ -444,7 +444,7 @@ export function Dashboard() {
           <span className="ml-2 text-xs text-[#94a3b8] font-normal">Agenda 2030 — cobertura em Estabelecimentos do inventário</span>
         </div>
 
-        <div className="flex gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {snap.ods.map((ods) => (
             <OdsDonut key={`${ods.titulo}-${ods.subtitulo}`} {...ods} />
           ))}

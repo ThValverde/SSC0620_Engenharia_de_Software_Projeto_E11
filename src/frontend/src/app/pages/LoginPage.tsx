@@ -134,12 +134,14 @@ export function LoginPage() {
                 )}
               </Button>
             </form>
-
             <div className="mt-6 pt-4 border-t">
               <p className="text-xs text-gray-500 text-center">
                 Credenciais de teste (para desenvolvimento):
               </p>
               <div className="mt-2 space-y-1 text-xs text-gray-600">
+                <p>
+                  <strong>Admin Django:</strong> admindjango@oto.com / senha
+                </p>
                 <p>
                   <strong>Admin OTO:</strong> admin@oto.com / senha
                 </p>
@@ -147,10 +149,39 @@ export function LoginPage() {
                   <strong>Staff OTO:</strong> staff@oto.com / senha
                 </p>
                 <p>
-                  <strong>Trade User:</strong> trade@user.com / senha
+                  <strong>Trade User:</strong> hotelA@teste.com / senha
                 </p>
               </div>
             </div>
+          <div className="mt-6 pt-4 border-t">  
+            <p className="text-xs text-gray-500 text-center">
+              Instituto de Ciências Matemáticas e de Computação - ICMC/USP
+            </p>
+            <p className="text-xs text-gray-500 text-center">
+              Disciplina SSC0620 - Engenharia de Software (2026.1)
+            </p>
+            <p className="text-xs text-gray-500 text-center">
+              Profa. Dra. Simone do Rocio Senger de Souza 
+            </p>
+
+          </div>
+          <div className="mt-6 pt-4 border-t">
+          <p className="text-xs text-gray-500 text-center">
+                Thiago de Castro Valverde - 14609241 - Porduct Owner/Developer
+            </p>
+              <p className="text-xs text-gray-500 text-center">   
+              Artur Rossoni Baraldi - Developer
+            </p>
+              <p className="text-xs text-gray-500 text-center">
+              Felipe de Oliveira Gomes - Developer
+            </p>
+              <p className="text-xs text-gray-500 text-center">
+              Leonardo Silva Cardoso - Developer
+            </p>
+              <p className="text-xs text-gray-500 text-center">
+              Leonardo Codeceira Goncalves Pinto - Developer
+            </p>
+          </div>
           </CardContent>
         </Card>
 
