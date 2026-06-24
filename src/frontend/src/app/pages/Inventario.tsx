@@ -256,6 +256,13 @@ export function Inventario() {
   const [catalogTree, setCatalogTree] = useState<CatalogSection[]>([]);
   const [saving, setSaving] = useState(false);
 
+  // Estados de paginação
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [totalItems, setTotalItems] = useState(0);
+  const [hasNextPage, setHasNextPage] = useState(false);
+  const [hasPreviousPage, setHasPreviousPage] = useState(false);
+
   useEffect(() => {
     const fetchInventario = async () => {
       try {
@@ -265,10 +272,19 @@ export function Inventario() {
         const endpoints = Object.values(segmentMapping);
         const results = await Promise.all(
           endpoints.map(async (endpoint) => {
-            const items = await apiService.listInventory(endpoint);
+            const paginated = await apiService.listInventory(endpoint, pageSize, currentPage);
             const segmento = endpointToSegment[endpoint];
 
-            return items.map((item: any) => normalizeInventarioItem(item, endpoint, segmento));
+            // Atualizar estado de paginação (usar primeira página como referência)
+            if (endpoint === endpoints[0]) {
+              setTotalItems(paginated.count);
+              setHasNextPage(paginated.next !== null);
+              setHasPreviousPage(paginated.previous !== null);
+            }
+
+            return paginated.results.map((item: any) =>
+              normalizeInventarioItem(item, endpoint, segmento)
+            );
           })
         );
 
@@ -283,7 +299,7 @@ export function Inventario() {
     };
 
     fetchInventario();
-  }, []);
+  }, [currentPage, pageSize]);
 
   useEffect(() => {
     const fetchOdsCatalog = async () => {
@@ -936,6 +952,51 @@ export function Inventario() {
         </div>
       </div>
 
+      {/* Pagination Controls */}
+      <div className="flex items-center justify-between mb-6 p-4 bg-white rounded-xl border border-[#e2e8f0] shadow-sm">
+        <div className="flex items-center gap-4">
+          <label className="text-sm font-medium text-[#64748b]">Registros por página:</label>
+          <select
+            value={pageSize}
+            onChange={(e) => {
+              setPageSize(Number(e.target.value));
+              setCurrentPage(1);
+            }}
+            disabled={isLoading}
+            className="px-3 py-2 border border-[#e2e8f0] rounded-lg text-sm text-[#334155] bg-white disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-[#1a6fbf]/30"
+          >
+            <option value={10}>10</option>
+            <option value={20}>20</option>
+            <option value={50}>50</option>
+          </select>
+        </div>
+
+        <div className="flex items-center gap-2 text-sm text-[#64748b]">
+          <span>
+            Página <strong className="text-[#0c2340]">{totalItems === 0 ? 0 : currentPage}</strong> de{" "}
+            <strong className="text-[#0c2340]">{Math.ceil(totalItems / pageSize) || 1}</strong> ({" "}
+            <strong className="text-[#0c2340]">{totalItems}</strong> total)
+          </span>
+        </div>
+
+        <div className="flex gap-2">
+          <button
+            onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+            disabled={!hasPreviousPage || isLoading}
+            className="px-3 py-2 border border-[#e2e8f0] rounded-lg text-sm text-[#64748b] hover:bg-[#f8fafc] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            ← Anterior
+          </button>
+          <button
+            onClick={() => setCurrentPage(currentPage + 1)}
+            disabled={!hasNextPage || isLoading}
+            className="px-3 py-2 border border-[#e2e8f0] rounded-lg text-sm text-[#64748b] hover:bg-[#f8fafc] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            Próxima →
+          </button>
+        </div>
+      </div>
+
       {/* Table */}
       <div className="bg-white rounded-xl border border-[#e2e8f0] shadow-sm overflow-hidden">
         <table className="w-full">
@@ -953,7 +1014,7 @@ export function Inventario() {
           <tbody>
             {filtered.map((est, i) => (
               <tr key={est.id} className="border-b border-[#f1f5f9] hover:bg-[#f8fafc] transition-colors">
-                <td className="px-4 py-3 text-xs text-[#94a3b8]">{i + 1}</td>
+                <td className="px-4 py-3 text-xs text-[#94a3b8]">{(currentPage - 1) * pageSize + i + 1}</td>
                 <td className="px-4 py-3 text-sm text-[#334155] font-medium max-w-[200px]">
                   <span className="truncate block">{est.razaoSocial}</span>
                 </td>

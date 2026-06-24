@@ -218,10 +218,39 @@ class ApiService {
     }
   }
 
-  async listInventory(endpoint: string): Promise<any[]> {
-    const response = await this.api.get(`/inventario/${endpoint}/`);
+  async listInventory(
+    endpoint: string,
+    pageSize: number = 10,
+    page: number = 1
+  ): Promise<{
+    results: any[];
+    count: number;
+    next: string | null;
+    previous: string | null;
+  }> {
+    const response = await this.api.get(`/inventario/${endpoint}/`, {
+      params: {
+        limit: pageSize,
+        offset: (page - 1) * pageSize,
+      },
+    });
+
     const data = response.data;
-    return Array.isArray(data) ? data : (data?.results ?? []);
+    if (Array.isArray(data)) {
+      return {
+        results: data,
+        count: data.length,
+        next: null,
+        previous: null,
+      };
+    }
+
+    return {
+      results: data?.results ?? [],
+      count: data?.count ?? 0,
+      next: data?.next ?? null,
+      previous: data?.previous ?? null,
+    };
   }
 
   async getInventoryItem(endpoint: string, id: number): Promise<any> {
