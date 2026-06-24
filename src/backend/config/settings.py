@@ -158,12 +158,3 @@ REST_AUTH = {
     'USER_DETAILS_SERIALIZER': 'inventario.serializers.CustomUserDetailsSerializer',
 }
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-
-# =============================================================================
-# CONFIGURAÇÃO DO DJ-REST-AUTH (Serializers Customizados)
-# =============================================================================
-REST_AUTH = {
-    'USE_JWT': True,
-    'JWT_AUTH_HTTPONLY': False,
-    'USER_DETAILS_SERIALIZER': 'inventario.serializers.CustomUserDetailsSerializer',
-}
