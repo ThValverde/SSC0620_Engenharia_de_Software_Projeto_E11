@@ -68,7 +68,7 @@ export const router = createBrowserRouter([
       {
         path: "/portal-trade",
         element: (
-          <ProtectedRoute allowedRoles={["Secretaria_Admin", "Secretaria_Staff"]}>
+          <ProtectedRoute allowedRoles={["Secretaria_Admin"]}>
             <PortalTrade />
           </ProtectedRoute>
         ),

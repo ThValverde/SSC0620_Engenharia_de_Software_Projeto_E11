@@ -159,3 +159,9 @@ REST_AUTH = {
     'SESSION_LOGIN': False,
 }
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+
+
+AUTHENTICATION_BACKENDS = [
+    'config.backends.EmailOrUsernameModelBackend', 
+    'django.contrib.auth.backends.ModelBackend',
+]

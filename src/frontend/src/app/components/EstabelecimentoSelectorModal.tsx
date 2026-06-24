@@ -60,7 +60,7 @@ export function EstabelecimentoSelectorModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-7xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[95vw] h-[90vh] overflow-y-auto p-6">
         <DialogHeader>
           <DialogTitle>Selecionar Estabelecimento</DialogTitle>
           <DialogDescription>
@@ -113,10 +113,10 @@ export function EstabelecimentoSelectorModal({
               <table className="w-full text-sm">
                 <thead className="bg-[#f8fafc] border-b border-[#e2e8f0] sticky top-0">
                   <tr>
-                    <th className="text-left px-6 py-4 text-xs font-semibold uppercase text-[#64748b] w-40">Nome</th>
-                    <th className="text-left px-6 py-4 text-xs font-semibold uppercase text-[#64748b] w-32">Segmento</th>
-                    <th className="text-left px-6 py-4 text-xs font-semibold uppercase text-[#64748b] w-32">Tipo</th>
-                    <th className="text-center px-6 py-4 text-xs font-semibold uppercase text-[#64748b] w-28">Ação</th>
+                    <th className="text-left px-4 py-4 text-xs font-semibold uppercase text-[#64748b] flex-1 min-w-0">Nome</th>
+                    <th className="text-left px-4 py-4 text-xs font-semibold uppercase text-[#64748b] w-24">Segmento</th>
+                    <th className="text-left px-4 py-4 text-xs font-semibold uppercase text-[#64748b] w-24">Tipo</th>
+                    <th className="text-center px-4 py-4 text-xs font-semibold uppercase text-[#64748b] w-20">Ação</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#f1f5f9]">
@@ -132,17 +132,17 @@ export function EstabelecimentoSelectorModal({
                         key={`${est.endpoint}-${est.id}`}
                         className="hover:bg-[#f8fafc] transition-colors"
                       >
-                        <td className="px-6 py-4">
-                          <div className="font-medium text-[#0c2340]">
+                        <td className="px-4 py-4">
+                          <div className="font-medium text-[#0c2340] truncate">
                             {est.label.split(" — ")[0]}
                           </div>
                           <div className="text-xs text-[#94a3b8] mt-1">ID {est.id}</div>
                         </td>
-                        <td className="px-6 py-4 text-[#334155]">{est.segmento}</td>
-                        <td className="px-6 py-4 text-[#64748b] text-xs font-mono bg-[#f1f5f9] rounded">
+                        <td className="px-4 py-4 text-[#334155] text-xs">{est.segmento}</td>
+                        <td className="px-4 py-4 text-[#64748b] text-xs font-mono bg-[#f1f5f9] rounded truncate">
                           {est.endpoint}
                         </td>
-                        <td className="px-6 py-4 text-center">
+                        <td className="px-4 py-4 text-center flex-shrink-0">
                           {selectedId === est.id ? (
                             <div className="flex items-center justify-center gap-2">
                               <Check size={18} className="text-green-600" />
