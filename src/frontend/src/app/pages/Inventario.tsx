@@ -451,6 +451,61 @@ export function Inventario() {
     setShowModal(true);
   };
 
+  // Mapeamento de campos por segmento: banco_field → form_field
+  const FIELD_MAPPING: Record<Segmento, Record<string, string>> = {
+    "Meio de Hospedagem": {
+      uh_total: "uhs",
+      leitos: "leitos",
+      classificacao: "categoria",
+    },
+    "Atrativo Turístico": {
+      estacionamento: "estacionamento",
+      destaque: "areaVerde",
+      informacoes_gerais: "capacidade",
+    },
+    "Alimentação": {
+      estacionamento: "estacionamento",
+      parque: "areaVerde",
+      especificacao_gastronomia: "categoria",
+      observacao: "capacidade",
+    },
+    "Espaço de Evento": {
+      descricao_espaco: "categoria",
+    },
+    "Agência de Viagem": {
+      estacionamento: "estacionamento",
+      destinos_inteligentes: "produtosLocais",
+      observacao: "categoria",
+    },
+    "Organizador de Evento": {
+      destinos_inteligentes: "produtosLocais",
+    },
+    "Transporte Turístico": {
+      destinos_inteligentes: "produtosLocais",
+      acessibilidade: "rampaAcesso",
+    },
+    "Artesanato": {},
+    "Banco": {},
+    "Templo Religioso": {},
+    "Serviço de Saúde": {
+      principais_servicos: "categoria",
+      horarios_emergencia: "capacidade",
+    },
+    "Serviço de Apoio": {
+      tipo_servico: "tipoServico",
+      observacao: "capacidade",
+    },
+    "Guia de Turismo": {},
+    "RHC": {
+      quantidade_leitos: "leitos",
+      capacidade_maxima: "capacidade",
+    },
+    "Grupo Folclórico": {
+      classificacao_grupo: "categoria",
+    },
+    "Táxi/Aplicativo": {},
+  };
+
   const normalizeFormData = (detail: any, segmento: Segmento, est: Estabelecimento) => {
     // Mapeia campos de documento para razaoSocial e nomeFantasia
     const getRazaoSocial = () => {
@@ -477,7 +532,7 @@ export function Inventario() {
       return detail.cnpj || est.cnpj || "";
     };
 
-    // Campos específicos
+    // Campos específicos de RHC
     const getNumeracaoRHC = () => segmento === "RHC" ? (detail.numeracao_rhc || "") : "";
     const getTipoImovelRHC = () => segmento === "RHC" ? (detail.tipo_imovel || "") : "";
 
@@ -509,6 +564,16 @@ export function Inventario() {
 
     const { endereco, cidade, cep } = getEnderecoCampos();
 
+    // Extrair campos específicos do segmento usando FIELD_MAPPING
+    const segmentFieldMap = FIELD_MAPPING[segmento] || {};
+    const segmentFields: Record<string, any> = {};
+
+    for (const [bancoField, formField] of Object.entries(segmentFieldMap)) {
+      // Converter para string se for número, pois formData usa strings
+      const value = detail[bancoField];
+      segmentFields[formField] = value != null ? String(value) : "";
+    }
+
     return {
       razaoSocial: getRazaoSocial(),
       nomeFantasia: getNomeFantasia(),
@@ -520,6 +585,7 @@ export function Inventario() {
       cep,
       numeracaoRHC: getNumeracaoRHC(),
       tipoImovelRHC: getTipoImovelRHC(),
+      ...segmentFields, // Adicionar campos específicos do segmento
     };
   };
 
@@ -567,6 +633,16 @@ export function Inventario() {
         cep: normalized.cep,
         numeracaoRHC: normalized.numeracaoRHC,
         tipoImovelRHC: normalized.tipoImovelRHC,
+        // Carregar campos específicos do segmento
+        categoria: normalized.categoria || "",
+        leitos: normalized.leitos || "",
+        uhs: normalized.uhs || "",
+        capacidade: normalized.capacidade || "",
+        estacionamento: normalized.estacionamento === "true" || normalized.estacionamento === true,
+        areaVerde: normalized.areaVerde === "true" || normalized.areaVerde === true,
+        produtosLocais: normalized.produtosLocais === "true" || normalized.produtosLocais === true,
+        tipoServico: normalized.tipoServico || "",
+        rampaAcesso: normalized.rampaAcesso === "true" || normalized.rampaAcesso === true,
         segmento: est.segmento,
         status: detail.ativo ? "Ativo" : "Inativo",
         sustentabilidade: sustainabilityItems,
@@ -644,9 +720,8 @@ export function Inventario() {
       if (data.capacidade) payload.observacao = `Capacidade informada: ${data.capacidade}`;
     }
 
-    if (data.segmento === "Serviço de Saúde") {
-      if (data.categoria) payload.principais_servicos = data.categoria;
-      if (data.capacidade) payload.horarios_emergencia = data.capacidade;
+    if (data.segmento === "Espaço de Evento") {
+      if (data.categoria) payload.descricao_espaco = data.categoria;
     }
 
     if (data.segmento === "Agência de Viagem") {
@@ -655,9 +730,18 @@ export function Inventario() {
       if (data.categoria) payload.observacao = data.categoria;
     }
 
+    if (data.segmento === "Organizador de Evento") {
+      payload.destinos_inteligentes = data.produtosLocais;
+    }
+
     if (data.segmento === "Transporte Turístico") {
       payload.destinos_inteligentes = data.produtosLocais;
       payload.acessibilidade = data.banheirosPCD || data.rampaAcesso;
+    }
+
+    if (data.segmento === "Serviço de Saúde") {
+      if (data.categoria) payload.principais_servicos = data.categoria;
+      if (data.capacidade) payload.horarios_emergencia = data.capacidade;
     }
 
     if (data.segmento === "Serviço de Apoio") {
