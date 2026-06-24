@@ -481,10 +481,43 @@ export function Inventario() {
     const getNumeracaoRHC = () => segmento === "RHC" ? (detail.numeracao_rhc || "") : "";
     const getTipoImovelRHC = () => segmento === "RHC" ? (detail.tipo_imovel || "") : "";
 
+    // Extrair email e telefone do primeiro contato (1:N com Contato)
+    const getEmailTelefone = () => {
+      const contatos = Array.isArray(detail.contatos) ? detail.contatos : [];
+      if (contatos.length > 0) {
+        return {
+          email: contatos[0].email || "",
+          telefone: contatos[0].telefone || "",
+        };
+      }
+      return { email: "", telefone: "" };
+    };
+
+    const { email, telefone } = getEmailTelefone();
+
+    // Extrair endereco (1:1 com Endereco)
+    const getEnderecoCampos = () => {
+      if (detail.endereco) {
+        return {
+          endereco: detail.endereco.rua || "",
+          cidade: detail.endereco.cidade || "Olímpia",
+          cep: detail.endereco.cep || "",
+        };
+      }
+      return { endereco: "", cidade: "Olímpia", cep: "" };
+    };
+
+    const { endereco, cidade, cep } = getEnderecoCampos();
+
     return {
       razaoSocial: getRazaoSocial(),
       nomeFantasia: getNomeFantasia(),
       cnpj: getDocument(),
+      email,
+      telefone,
+      endereco,
+      cidade,
+      cep,
       numeracaoRHC: getNumeracaoRHC(),
       tipoImovelRHC: getTipoImovelRHC(),
     };
@@ -527,6 +560,11 @@ export function Inventario() {
         razaoSocial: normalized.razaoSocial,
         nomeFantasia: normalized.nomeFantasia,
         cnpj: normalized.cnpj,
+        email: normalized.email,
+        telefone: normalized.telefone,
+        endereco: normalized.endereco,
+        cidade: normalized.cidade,
+        cep: normalized.cep,
         numeracaoRHC: normalized.numeracaoRHC,
         tipoImovelRHC: normalized.tipoImovelRHC,
         segmento: est.segmento,
@@ -625,6 +663,27 @@ export function Inventario() {
     if (data.segmento === "Serviço de Apoio") {
       if (data.tipoServico) payload.tipo_servico = data.tipoServico;
       if (data.capacidade) payload.observacao = data.capacidade;
+    }
+
+    // Mapear email/telefone para contatos (1:N com Contato)
+    const contatos = [];
+    if (data.email || data.telefone) {
+      contatos.push({
+        email: data.email || "",
+        telefone: data.telefone || "",
+        cargo: "",
+      });
+    }
+    if (contatos.length > 0) {
+      payload.contatos = contatos;
+    }
+
+    // Mapear endereco (1:1 com Endereco)
+    if (data.endereco || data.cep) {
+      payload.endereco = {
+        rua: data.endereco || "",
+        cep: data.cep || "",
+      };
     }
 
     payload.sustentabilidade = data.sustentabilidade.map((item) => ({
