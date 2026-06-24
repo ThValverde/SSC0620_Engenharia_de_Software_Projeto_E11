@@ -49,7 +49,7 @@ const emptyForm: UserFormState = {
   password: "",
   is_active: true,
   is_superuser: false,
-  groups: [],
+  groups: ["Secretaria_Staff"],
 };
 
 function getRole(user: ManagedUser): UserRole {
@@ -142,24 +142,25 @@ export function UsersPage() {
     setDialogOpen(true);
   };
 
+
   const buildPayload = () => {
-    const payload: Record<string, unknown> = {
-      username: form.username,
-      email: form.email,
-      first_name: form.first_name,
-      last_name: form.last_name,
-      is_active: form.is_active,
-      is_superuser: form.is_superuser,
-      groups: form.is_superuser ? [] : form.groups,
-    };
-
-    if (form.password.trim()) {
-      payload.password = form.password;
-    }
-
-    return payload;
+  const payload: any = {
+    username: form.username,
+    email: form.email,
+    first_name: form.first_name,
+    last_name: form.last_name,
+    is_active: form.is_active,
+    is_superuser: form.is_superuser,
+    groups: form.groups,
   };
 
+  if (form.password.trim()) {
+    payload.password = form.password;
+  }
+
+  return payload;
+};
+  
   const handleSave = async () => {
     if (!form.username || !form.email) {
       toast.error("Preencha pelo menos usuário e email.");

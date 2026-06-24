@@ -69,13 +69,14 @@ const baseNavItems: NavItem[] = [
     sublabel: "Autoatendimento",
     icon: Store,
     to: "/portal-trade",
+    requiresRole: ["Secretaria_Admin", "trade"],
   },
 ];
 
 export function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { canAccessModule, user, isTradeUser, logout, isSuperuser, isSecretariaAdmin } = useAuth();
+  const { canAccessModule, user, isTradeUser, logout, isSuperuser, isSecretariaAdmin, isSecretariaStaff } = useAuth();
 
   const isActive = (to: string) => {
     if (to === "/") return location.pathname === "/";
@@ -88,6 +89,7 @@ export function Sidebar() {
     }
 
     if (item.to === "/portal-trade") {
+      if (isSecretariaStaff()) {return false;}
       return true;
     }
 

@@ -125,31 +125,21 @@ const hasRole = (role: string): boolean => {
     return false;
   };
 
-  // Dentro de AuthContext.tsx
-  const canAccessModule = (module: 'users' | 'inventory' | 'import' | 'crossing' | 'history' | 'portal_trade' | 'meu_portal'): boolean => {
-    
+  const canAccessModule = (module: 'users' | 'inventory' | 'import' | 'crossing' | 'history' | 'portal'): boolean => {
     if (!user) return false;
 
-    // Superuser acessa tudo
-    if (isSuperuser()) return true;
+    // User management: only superuser or Secretaria_Admin can access
+    if (module === 'users') {
+      return isSuperuser() || isSecretariaAdmin();
+    }
 
-    // Usuário do Trade (Dono de Hotel): SÓ acessa o seu autoatendimento
+    // Trade users can only access portal
     if (isTradeUser()) {
-      return module === 'meu_portal';
+      return module === 'portal';
     }
 
-    // Secretaria Admin: Acessa tudo que sobrar
-    if (isSecretariaAdmin()) return true;
-
-    // Secretaria Staff: Não acessa gestão de usuários nem a gestão do portal do trade
-    if (isSecretariaStaff()) {
-       if (module === 'users' || module === 'portal_trade') {
-           return false; // Bloqueia o staff nestes módulos
-       }
-       return true; // Libera o resto (Dashboard, Inventário, etc)
-    }
-
-    return false; 
+    // Admins can access all modules
+    return true;
   };
 
   const value: AuthContextType = {

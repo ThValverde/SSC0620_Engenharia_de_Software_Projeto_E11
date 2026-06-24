@@ -1204,9 +1204,11 @@ class CadastroUsuarioSerializer(serializers.Serializer):
 
         # Criar usuário
         user = User.objects.create_user(
-            username=email,
-            email=email,
-            password=password
+            username=validated_data.get('username'), # Usa o username do formulário
+            email=validated_data['email'],
+            password=validated_data['password'],
+            first_name=validated_data.get('first_name', ''),
+            last_name=validated_data.get('last_name', '')
         )
 
         # Garantir que os grupos existem (usar get_or_create)
