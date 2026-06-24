@@ -70,10 +70,10 @@ const inventoryEndpoints = [
   "templos",
   "saude",
   "apoio",
-  "guias-turismo",
+  "guias",
   "rhc",
   "grupos-folcloricos",
-  "taxi-aplicativo",
+  "taxis",
 ];
 
 const endpointToSegment: Record<string, string> = {
@@ -89,10 +89,10 @@ const endpointToSegment: Record<string, string> = {
   templos: "Templo Religioso",
   saude: "Serviço de Saúde",
   apoio: "Serviço de Apoio",
-  "guias-turismo": "Guia de Turismo",
+  guias: "Guia de Turismo",
   rhc: "RHC",
   "grupos-folcloricos": "Grupo Folclórico",
-  "taxi-aplicativo": "Táxi/Aplicativo",
+  taxis: "Táxi/Aplicativo",
 };
 
 export function PortalTrade() {
