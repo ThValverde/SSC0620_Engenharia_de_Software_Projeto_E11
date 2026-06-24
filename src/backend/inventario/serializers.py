@@ -579,6 +579,8 @@ class CaracteristicasStateField(serializers.Field):
         return instance
 
     def to_representation(self, instance):
+        if not hasattr(instance, 'caracteristicas'):
+            return []
         return list(
             instance.caracteristicas.values_list('id', flat=True).order_by('id')
         )
@@ -603,6 +605,8 @@ class MetricasStateField(serializers.Field):
         return instance
 
     def to_representation(self, instance):
+        if not hasattr(instance, 'medicao_set'):
+            return []
         return [
             {"id": med.metrica_id, "valor": str(med.valor)}
             for med in instance.medicao_set.select_related('metrica').order_by('metrica_id')
@@ -636,6 +640,9 @@ class CatalogStateMixin:
         if caracteristicas_ids is None:
             return
 
+        if not hasattr(instance, 'caracteristicas'):
+            return
+
         qs = Caracteristica.objects.filter(id__in=caracteristicas_ids)
         if qs.count() != len(set(caracteristicas_ids)):
             raise serializers.ValidationError({"caracteristicas": "Uma ou mais características não existem."})
@@ -653,6 +660,9 @@ class CatalogStateMixin:
 
     def _sync_metricas(self, instance, metricas_data):
         if metricas_data is None:
+            return
+
+        if not hasattr(instance, 'medicao_set'):
             return
 
         existing = {
