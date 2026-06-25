@@ -1,3 +1,7 @@
+/**
+ * Componente raiz da aplicação.
+ * Configura os provedores de contexto global e o sistema de roteamento.
+ */
 import { RouterProvider } from "react-router";
 import { router } from "./routes";
 import { AuthProvider } from "./contexts/AuthContext";
