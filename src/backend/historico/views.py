@@ -11,21 +11,32 @@ from .serializers import (
 
 class BaseSecretariaViewSet(viewsets.ModelViewSet):
     """
-    Trava de segurança: Exige usuário logado.
-    Como combinamos, o ideal aqui é o frontend só liberar esta tela para a 
-    Secretaria Municipal. (Você pode plugar aquela sua classe IsSecretaria depois).
+    Garante que apenas usuários autenticados acessem as rotas herdadas.
+    Pendente de integração com a permissão IsSecretaria para restringir 
+    o acesso exclusivamente à Secretaria Municipal.
     """
     permission_classes = [IsAuthenticated]
 
 class PastaViewSet(BaseSecretariaViewSet):
+    """
+    Gerencia as ações da interface para as Pastas (listar, criar, editar e excluir).
+    """
     queryset = Pasta.objects.all()
     serializer_class = PastaSerializer
 
 class TagSegmentoViewSet(BaseSecretariaViewSet):
+    """
+    Gerencia as ações da interface para as Tags de Segmento.
+    """
     queryset = TagSegmento.objects.all()
     serializer_class = TagSegmentoSerializer
 
 class RelatorioViewSet(BaseSecretariaViewSet):
+    """
+    Gerencia as ações da interface para os Relatórios.
+    Habilita ferramentas para o frontend filtrar os relatórios (por pasta ou tag),
+    fazer buscas de texto (pelo título) e ordenar os resultados.
+    """
     queryset = Relatorio.objects.all()
     serializer_class = RelatorioSerializer
     
@@ -41,6 +52,10 @@ class RelatorioViewSet(BaseSecretariaViewSet):
     ordering_fields = ['criado_em', 'atualizado_em', 'titulo']
 
 class ArquivoAnexoViewSet(BaseSecretariaViewSet):
+    """
+    Gerencia os arquivos físicos atrelados aos relatórios.
+    Configurado especificamente para aceitar uploads de arquivos via formulário (MultiPart).
+    """
     queryset = ArquivoAnexo.objects.all()
     serializer_class = ArquivoAnexoSerializer
 
@@ -48,6 +63,10 @@ class ArquivoAnexoViewSet(BaseSecretariaViewSet):
 
 
 class HistoricoImportacaoViewSet(BaseSecretariaViewSet):
+    """
+    Gerencia a listagem e o envio de arquivos para importação.
+    Ao criar um novo registro, atrela automaticamente o usuário logado como autor.
+    """
     queryset = Relatorio.objects.none()
     serializer_class = HistoricoImportacaoSerializer
     parser_classes = [MultiPartParser, FormParser, JSONParser]
