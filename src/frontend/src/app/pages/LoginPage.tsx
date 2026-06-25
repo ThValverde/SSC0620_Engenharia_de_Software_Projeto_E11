@@ -1,3 +1,8 @@
+/**
+ * Tela de autenticação e porta de entrada do sistema.
+ * Processa as credenciais do usuário consumindo o contexto de autenticação global (AuthContext)
+ * e gerencia o redirecionamento seguro para as rotas protegidas após o login.
+ */
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router';
 import { LogIn, AlertCircle } from 'lucide-react';
@@ -53,7 +58,6 @@ export function LoginPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0c2340] to-[#1a6fbf] flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        {/* Logo/Header */}
         <div className="text-center mb-8">
           <div className="flex justify-center mb-4">
             <div className="w-16 h-16 bg-white/20 rounded-lg flex items-center justify-center backdrop-blur">
@@ -64,7 +68,6 @@ export function LoginPage() {
           <p className="text-white/70">Observatório de Turismo</p>
         </div>
 
-        {/* Login Card */}
         <Card>
           <CardHeader>
             <CardTitle>Acesso ao Sistema</CardTitle>
@@ -185,7 +188,6 @@ export function LoginPage() {
           </CardContent>
         </Card>
 
-        {/* Footer */}
         <p className="text-center text-white/50 text-xs mt-6">
           v1.0.0 · Observatório de Turismo de Olímpia © 2026
         </p>
