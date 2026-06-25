@@ -1,3 +1,8 @@
+/**
+ * Tela principal de gerenciamento do Inventário Turístico.
+ * Realiza o CRUD (criação, leitura, atualização e exclusão) de todas as entidades do trade,
+ * consolidando dados cadastrais, infraestrutura, acessibilidade e indicadores ODS (Agenda 2030).
+ */
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import {
@@ -119,16 +124,14 @@ const endpointToSegment = Object.entries(segmentMapping).reduce(
 );
 
 const normalizeInventarioItem = (item: any, endpoint: string, segmento: Segmento): Estabelecimento => {
-  // Extrai campo de documento (pode ser cnpj, cpf, documento, cpf_proprietario)
   const getDocument = () => {
     if (segmento === "Guia de Turismo") return item.cpf || "";
     if (segmento === "RHC") return item.cpf_proprietario || "";
     if (segmento === "Grupo Folclórico") return item.documento || "";
-    if (segmento === "Táxi/Aplicativo") return item.documento || ""; // pode não ter
+    if (segmento === "Táxi/Aplicativo") return item.documento || "";
     return item.cnpj || "";
   };
 
-  // Extrai razão social / nome principal
   const getRazaoSocial = () => {
     if (segmento === "Guia de Turismo") return item.nome || "";
     if (segmento === "RHC") return item.nome_proprietario || "";
@@ -137,7 +140,6 @@ const normalizeInventarioItem = (item: any, endpoint: string, segmento: Segmento
     return item.razao_social || "";
   };
 
-  // Extrai nome fantasia / nome alternativo
   const getNomeFantasia = () => {
     if (segmento === "Guia de Turismo") return item.nome || "";
     if (segmento === "RHC") return item.denominacao_comercial || item.nome_proprietario || "";
@@ -179,7 +181,6 @@ interface FormData {
   segmento: Segmento | "";
   status: "Ativo" | "Inativo";
   categoria: string;
-  // Infra
   uhs: string;
   leitos: string;
   capacidade: string;
@@ -188,7 +189,6 @@ interface FormData {
   salasEventos: boolean;
   estacionamento: boolean;
   wifiCortesia: boolean;
-  // Acessibilidade & Sustentabilidade
   banheirosPCD: boolean;
   rampaAcesso: boolean;
   sinalizacaoBraile: boolean;
@@ -197,10 +197,9 @@ interface FormData {
   sustentabilidade: OdsFormItem[];
   caracteristicasSelecionadas: number[];
   metricas: Array<{ id: number; valor: string }>;
-  // Extras for specific segmentos (RHC, Serviço de Apoio)
-  tipoServico?: string; // maps to tipo_servico for Serviço de Apoio
-  numeracaoRHC?: string; // maps to numeracao_rhc for RHC
-  tipoImovelRHC?: string; // maps to tipo_imovel for RHC
+  tipoServico?: string;
+  numeracaoRHC?: string;
+  tipoImovelRHC?: string;
 }
 
 const buildOdsItems = (catalog: OdsCatalogItem[], current: OdsFormItem[] = []): OdsFormItem[] => {
@@ -225,7 +224,6 @@ const createEmptyForm = (catalog: OdsCatalogItem[] = []): FormData => ({
   sustentabilidade: buildOdsItems(catalog),
   caracteristicasSelecionadas: [],
   metricas: [],
-  // Defaults for specific segmentos
   tipoServico: "",
   numeracaoRHC: "",
   tipoImovelRHC: "",
@@ -256,7 +254,6 @@ export function Inventario() {
   const [catalogTree, setCatalogTree] = useState<CatalogSection[]>([]);
   const [saving, setSaving] = useState(false);
 
-  // Estados de paginação
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [totalItems, setTotalItems] = useState(0);
@@ -275,7 +272,6 @@ export function Inventario() {
             const paginated = await apiService.listInventory(endpoint, pageSize, currentPage);
             const segmento = endpointToSegment[endpoint];
 
-            // Atualizar estado de paginação (usar primeira página como referência)
             if (endpoint === endpoints[0]) {
               setTotalItems(paginated.count);
               setHasNextPage(paginated.next !== null);
@@ -350,16 +346,13 @@ export function Inventario() {
     return matchSearch && matchSeg && matchStatus;
   });
 
-  // Segunda camada de paginação: pagina o array filtrado localmente
   const paginatedFiltered = filtered.slice(
     (currentPage - 1) * pageSize,
     currentPage * pageSize
   );
 
-  // Atualizar contadores baseado no array filtrado (não no total do banco)
-  // useEffect para sincronizar quando filtros mudam
   useEffect(() => {
-    setCurrentPage(1); // Reseta para página 1 quando filtros mudam
+    setCurrentPage(1);
     setTotalItems(filtered.length);
     setHasNextPage((currentPage - 1) * pageSize + pageSize < filtered.length);
     setHasPreviousPage(currentPage > 1);
@@ -379,8 +372,6 @@ export function Inventario() {
 
     setFormData((prev) => {
       const current = new Set(prev.caracteristicasSelecionadas);
-      // Responder "Não" (ou reabrir a pergunta) limpa as marcações desta seção.
-      // Não existe mais opção "Não" no catálogo: ausência de marcação = não possui.
       sectionIds.forEach((id) => current.delete(id));
 
       return {
@@ -482,7 +473,6 @@ export function Inventario() {
     setShowModal(true);
   };
 
-  // Mapeamento de campos por segmento: banco_field → form_field
   const FIELD_MAPPING: Record<Segmento, Record<string, string>> = {
     "Meio de Hospedagem": {
       uh_total: "uhs",
@@ -538,7 +528,6 @@ export function Inventario() {
   };
 
   const normalizeFormData = (detail: any, segmento: Segmento, est: Estabelecimento) => {
-    // Mapeia campos de documento para razaoSocial e nomeFantasia
     const getRazaoSocial = () => {
       if (segmento === "Guia de Turismo") return detail.nome || est.razaoSocial || "";
       if (segmento === "RHC") return detail.nome_proprietario || est.razaoSocial || "";
@@ -563,11 +552,9 @@ export function Inventario() {
       return detail.cnpj || est.cnpj || "";
     };
 
-    // Campos específicos de RHC
     const getNumeracaoRHC = () => segmento === "RHC" ? (detail.numeracao_rhc || "") : "";
     const getTipoImovelRHC = () => segmento === "RHC" ? (detail.tipo_imovel || "") : "";
 
-    // Extrair email e telefone do primeiro contato (1:N com Contato)
     const getEmailTelefone = () => {
       const contatos = Array.isArray(detail.contatos) ? detail.contatos : [];
       if (contatos.length > 0) {
@@ -581,7 +568,6 @@ export function Inventario() {
 
     const { email, telefone } = getEmailTelefone();
 
-    // Extrair endereco (1:1 com Endereco)
     const getEnderecoCampos = () => {
       if (detail.endereco) {
         return {
@@ -595,12 +581,10 @@ export function Inventario() {
 
     const { endereco, cidade, cep } = getEnderecoCampos();
 
-    // Extrair campos específicos do segmento usando FIELD_MAPPING
     const segmentFieldMap = FIELD_MAPPING[segmento] || {};
     const segmentFields: Record<string, any> = {};
 
     for (const [bancoField, formField] of Object.entries(segmentFieldMap)) {
-      // Converter para string se for número, pois formData usa strings
       const value = detail[bancoField];
       segmentFields[formField] = value != null ? String(value) : "";
     }
@@ -616,7 +600,7 @@ export function Inventario() {
       cep,
       numeracaoRHC: getNumeracaoRHC(),
       tipoImovelRHC: getTipoImovelRHC(),
-      ...segmentFields, // Adicionar campos específicos do segmento
+      ...segmentFields,
     };
   };
 
@@ -649,7 +633,6 @@ export function Inventario() {
         ? buildOdsItems(odsCatalog, sustainability)
         : sustainability;
 
-      // Normalizar campos para o formulário
       const normalized = normalizeFormData(detail, est.segmento, est);
 
       setFormData({
@@ -664,7 +647,6 @@ export function Inventario() {
         cep: normalized.cep,
         numeracaoRHC: normalized.numeracaoRHC,
         tipoImovelRHC: normalized.tipoImovelRHC,
-        // Carregar campos específicos do segmento
         categoria: normalized.categoria || "",
         leitos: normalized.leitos || "",
         uhs: normalized.uhs || "",
@@ -696,7 +678,6 @@ export function Inventario() {
       ativo: data.status === "Ativo",
     };
 
-    // Handle document fields based on entity type
     if (data.segmento === "Guia de Turismo") {
       payload.nome = data.nomeFantasia || data.razaoSocial;
       payload.cpf = documentValue || null;
@@ -725,13 +706,11 @@ export function Inventario() {
         payload.documento = cpfOrCnpj;
       }
     } else {
-      // Estabelecimento-based entities
       payload.razao_social = data.razaoSocial;
       payload.nome_fantasia = data.nomeFantasia || data.razaoSocial;
       payload.cnpj = documentValue || null;
     }
 
-    // Segment-specific fields
     if (data.segmento === "Meio de Hospedagem") {
       if (data.uhs) payload.uh_total = Number(data.uhs);
       if (data.leitos) payload.leitos = Number(data.leitos);
@@ -780,7 +759,6 @@ export function Inventario() {
       if (data.capacidade) payload.observacao = data.capacidade;
     }
 
-    // Mapear email/telefone para contatos (1:N com Contato)
     const contatos = [];
     if (data.email || data.telefone) {
       contatos.push({
@@ -849,7 +827,6 @@ export function Inventario() {
       setEditId(null);
       setEditingEndpoint(null);
     } catch (error: any) {
-      // Provide detailed diagnostics for failures: network vs server vs validation
       console.error("Erro na requisição ao salvar estabelecimento:", error);
       const resp = error?.response;
       if (resp) {
@@ -858,11 +835,9 @@ export function Inventario() {
         console.error("Resposta do servidor:", status, data);
         toast.error(`Erro servidor ${status}: ${typeof data === 'string' ? data : JSON.stringify(data)}`);
       } else if (error?.request) {
-        // Request made but no response
         console.error("Requisição enviada, sem resposta do servidor:", error.request);
         toast.error("Sem resposta do servidor. Verifique se o backend está rodando e acessível.");
       } else {
-        // Something happened setting up the request
         toast.error(error?.message || "Erro desconhecido ao tentar salvar.");
       }
     } finally {
@@ -888,7 +863,6 @@ export function Inventario() {
 
   return (
     <div className="p-6 space-y-5">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-[#0c2340]">Inventário Turístico</h1>
@@ -914,7 +888,6 @@ export function Inventario() {
         </div>
       )}
 
-      {/* Filters Bar */}
       <div className="bg-white rounded-xl border border-[#e2e8f0] p-4 shadow-sm">
         <div className="flex items-center gap-3">
           <div className="flex-1 relative">
@@ -954,7 +927,6 @@ export function Inventario() {
         </div>
       </div>
 
-      {/* Stats Row */}
       <div className="flex items-center gap-4">
         <span className="text-sm text-[#64748b]">
           Exibindo <strong className="text-[#0c2340]">{filtered.length}</strong> de{" "}
@@ -973,7 +945,6 @@ export function Inventario() {
         </div>
       </div>
 
-      {/* Pagination Controls */}
       <div className="flex items-center justify-between mb-6 p-4 bg-white rounded-xl border border-[#e2e8f0] shadow-sm">
         <div className="flex items-center gap-4">
           <label className="text-sm font-medium text-[#64748b]">Registros por página:</label>
@@ -1018,7 +989,6 @@ export function Inventario() {
         </div>
       </div>
 
-      {/* Table */}
       <div className="bg-white rounded-xl border border-[#e2e8f0] shadow-sm overflow-hidden">
         <table className="w-full">
           <thead>
@@ -1085,7 +1055,6 @@ export function Inventario() {
         </table>
       </div>
 
-      {/* Delete Confirm Modal */}
       {deleteConfirm !== null && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6">
@@ -1111,11 +1080,9 @@ export function Inventario() {
         </div>
       )}
 
-      {/* New/Edit Modal with Tabs */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col">
-            {/* Modal Header */}
             <div className="flex items-center justify-between p-5 border-b border-[#e2e8f0]">
               <div>
                 <h2 className="text-[#0c2340]">
@@ -1133,7 +1100,6 @@ export function Inventario() {
               </button>
             </div>
 
-            {/* Tabs */}
             <div className="px-5 border-b border-[#e2e8f0] bg-[#f8fafc]">
               <div className="flex gap-1">
                 {tabs.map((t) => {
@@ -1157,7 +1123,6 @@ export function Inventario() {
               </div>
             </div>
 
-            {/* Tab Content */}
             <div className="p-5 space-y-4 overflow-y-auto flex-1">
               {activeTab === "cadastrais" && (
                 <div className="grid grid-cols-2 gap-3">
@@ -1273,7 +1238,6 @@ export function Inventario() {
                     </div>
                   </div>
 
-                  {/* Status da Entidade */}
                   <div className="col-span-2">
                     <label className="block text-xs font-medium text-[#64748b] mb-2">
                       Status da Entidade
@@ -1553,7 +1517,6 @@ export function Inventario() {
               )}
             </div>
 
-            {/* Modal Footer */}
             <div className="flex items-center justify-between p-5 border-t border-[#e2e8f0] bg-white rounded-b-xl">
               <p className="text-xs text-[#94a3b8]">
                 <span className="text-red-500">*</span> Campos obrigatórios
