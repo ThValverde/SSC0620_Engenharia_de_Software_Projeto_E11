@@ -1,3 +1,7 @@
+/**
+ * Definição das rotas e controle de acesso da aplicação.
+ * Organiza a navegação entre páginas públicas (login) e protegidas (dashboard/inventário).
+ */
 import { createBrowserRouter, Navigate } from "react-router";
 import { Layout } from "./components/Layout";
 import { Dashboard } from "./pages/Dashboard";
@@ -17,12 +21,10 @@ export const router = createBrowserRouter([
     Component: LoginPage,
   },
   {
-    // Raiz do site intercepta o login e te joga pra página certa
     path: "/",
     Component: SmartRedirectRoute,
   },
   {
-    // O Layout desenha o Menu Lateral (Sidebar)
     element: <Layout />,
     children: [
       {
