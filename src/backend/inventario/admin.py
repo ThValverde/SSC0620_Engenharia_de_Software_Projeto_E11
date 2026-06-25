@@ -1,9 +1,8 @@
 """
-Inventário Turístico — OTO | Django Admin (CRUD do perfil Administrador)
-
-Os inlines de Endereco/Contato/RedeSocial/Cadastur/ODS apontam para
-RegistroInventario (a raiz da herança multi-tabela); o Django aceita
-inlines cuja FK referencia um ancestral do model registrado.
+Configurações do Django Admin para o módulo de Inventário Turístico.
+Gerencia o CRUD de estabelecimentos e entidades através do painel do Administrador.
+Utiliza a classe base RegistroInventario para o reaproveitamento de inlines 
+(Endereço, Contato, ODS, etc.) via herança multi-tabela.
 """
 
 import re
@@ -46,7 +45,6 @@ from .models import (
     EscopoCatalogo
 )
 
-# ----------------------------- Inlines de suporte ---------------------------
 
 class EnderecoInline(admin.StackedInline):
     model = Endereco
@@ -81,7 +79,6 @@ class ProdutoServicoInline(admin.TabularInline):
     extra = 0
 
 
-# ----------------------------- Bases reutilizáveis --------------------------
 
 class RegistroBaseAdmin(admin.ModelAdmin):
     """Base p/ entidades independentes (Guia, RHC, Grupo, Táxi)."""
@@ -156,7 +153,6 @@ class EstabelecimentoBaseAdmin(RegistroBaseAdmin):
         return inline_instances
 
 
-# ----------------------------- Filhas de Estabelecimento --------------------
 
 @admin.register(Estabelecimento)
 class EstabelecimentoAdmin(admin.ModelAdmin):
@@ -165,7 +161,7 @@ class EstabelecimentoAdmin(admin.ModelAdmin):
     search_fields = ["nome_fantasia", "razao_social", "cnpj"]
 
     def has_add_permission(self, request):
-        return False  # Criar sempre pela especialização (filhas)
+        return False
 
 
 @admin.register(MeioHospedagem)
@@ -203,7 +199,6 @@ for _modelo in (
     admin.site.register(_modelo, EstabelecimentoBaseAdmin)
 
 
-# ----------------------------- Entidades independentes ----------------------
 
 @admin.register(GuiaTurismo)
 class GuiaTurismoAdmin(RegistroBaseAdmin):
@@ -265,7 +260,6 @@ class TaxiAplicativoAdmin(RegistroBaseAdmin):
     search_fields = ["nome", "empresa", "placa"]
 
 
-# ----------------------------- Catálogos e demais ---------------------------
 
 @admin.register(Caracteristica)
 class CaracteristicaAdmin(admin.ModelAdmin):
