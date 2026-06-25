@@ -95,7 +95,7 @@ class CnpjTests(TestCase):
 
     def test_cnpj_valido_passa(self):
         h = MeioHospedagem(nome_fantasia="Hotel A", cnpj="11222333000181")
-        h.full_clean()  # não deve levantar
+        h.full_clean()
 
     def test_cnpj_duplicado_rejeitado(self):
         MeioHospedagem.objects.create(nome_fantasia="Hotel A", cnpj="11222333000181")
@@ -104,7 +104,6 @@ class CnpjTests(TestCase):
                 MeioHospedagem.objects.create(nome_fantasia="Clone", cnpj="11222333000181")
 
     def test_cnpj_nulo_permitido_para_atrativo_publico(self):
-        # vários registros sem CNPJ devem coexistir (NULL não conflita no UNIQUE)
         AtrativoLazerEntretenimento.objects.create(nome_fantasia="Praça Pública", cnpj=None)
         AtrativoLazerEntretenimento.objects.create(nome_fantasia="Mirante", cnpj=None)
         self.assertEqual(
@@ -228,7 +227,7 @@ class EAVEscopoTests(TestCase):
         ec = EstabelecimentoCaracteristica(
             estabelecimento=self.hotel, caracteristica=self.carac_mh
         )
-        ec.full_clean()  # não deve levantar
+        ec.full_clean()
 
     def test_caracteristica_de_outro_escopo_barrada(self):
         ec = EstabelecimentoCaracteristica(
@@ -238,7 +237,6 @@ class EAVEscopoTests(TestCase):
             ec.full_clean()
 
     def test_escopo_evita_colisao_de_nomes_iguais(self):
-        # mesmo (nome, categoria) em escopos diferentes coexistem no catálogo
         self.assertNotEqual(self.carac_mh.pk, self.carac_atrativo.pk)
 
     def test_medicao_guarda_valor_numerico(self):
