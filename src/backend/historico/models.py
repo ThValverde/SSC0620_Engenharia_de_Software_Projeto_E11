@@ -103,10 +103,18 @@ class ArquivoAnexo(models.Model):
 
 
 def diretorio_upload_importacao(instance, filename):
+    """
+    Função auxiliar que define o caminho onde os arquivos de importação
+    serão salvos. Salva dentro da pasta: uploads/importacoes/nome_da_fonte/nome_do_arquivo.ext
+    """
     return f"uploads/importacoes/{instance.fonte}/{filename}"
 
 
 class HistoricoImportacao(models.Model):
+    """
+    Guarda o registro de todas as importações de dados feitas para o sistema,
+    indicando se o processamento do arquivo deu certo ou se houve falha.
+    """
     class Status(models.TextChoices):
         PROCESSADO = "processado", "Processado"
         FALHOU = "falhou", "Falhou"
