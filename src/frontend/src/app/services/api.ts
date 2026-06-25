@@ -1,7 +1,6 @@
 import axios, { AxiosError, AxiosInstance } from 'axios';
 import { toast } from 'sonner';
 
-// @ts-ignore
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 interface Tokens {
   access: string;
@@ -378,7 +377,6 @@ class ApiService {
   }
 
   private setupInterceptors() {
-    // Request interceptor: attach JWT token
     this.api.interceptors.request.use(
       (config) => {
         const token = this.getAccessToken();
@@ -390,7 +388,6 @@ class ApiService {
       (error) => Promise.reject(error)
     );
 
-    // Response interceptor: handle token refresh on 401
     this.api.interceptors.response.use(
       (response) => response,
       async (error: AxiosError) => {
@@ -405,7 +402,6 @@ class ApiService {
             return this.api(originalRequest);
           } catch (refreshError) {
             this.clearTokens();
-            // window.location.href = '/login';
             return Promise.reject(refreshError);
           }
         }
@@ -442,10 +438,8 @@ class ApiService {
     return this.refreshTokenRequest;
   }
 
-  // Auth endpoints
 async login(email: string, password: string): Promise<LoginResponse> {
     try {
-      // Usamos <any> aqui para permitir a desestruturação segura mais abaixo
       const response = await this.api.post<any>('/auth/login/', {
         username: email,
         password,
@@ -453,14 +447,11 @@ async login(email: string, password: string): Promise<LoginResponse> {
       
       const { access, refresh, user: rawUser } = response.data;
       
-      // PROTEÇÃO: Garantimos que o objeto 'user' tem a estrutura exata 
-      // que o nosso AuthContext e ProtectedRoute esperam, evitando a Tela Branca.
       const safeUser: User = {
         id: rawUser?.id || rawUser?.pk || 0,
         email: rawUser?.email || email,
         username: rawUser?.username || email,
         is_superuser: !!rawUser?.is_superuser,
-        // Garantimos que groups é SEMPRE um array, mesmo que o backend não envie
         groups: Array.isArray(rawUser?.groups) ? rawUser.groups : [],
         first_name: rawUser?.first_name || '',
         last_name: rawUser?.last_name || ''
@@ -488,7 +479,6 @@ async login(email: string, password: string): Promise<LoginResponse> {
     this.clearTokens();
   }
 
-  // User endpoints
   async getUser(): Promise<User> {
     const response = await this.api.get<User>('/auth/user/');
     return response.data;
@@ -665,7 +655,6 @@ async login(email: string, password: string): Promise<LoginResponse> {
     }
   }
 
-  // Generic PATCH for dashboard updates
   async updateResource(endpoint: string, data: any): Promise<any> {
     try {
       const response = await this.api.patch(endpoint, data);
@@ -690,7 +679,6 @@ async login(email: string, password: string): Promise<LoginResponse> {
     }
   }
 
-  // Token management
   private getAccessToken(): string | null {
     return localStorage.getItem('access_token');
   }
