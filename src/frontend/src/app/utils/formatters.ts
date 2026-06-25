@@ -21,10 +21,16 @@ export function formatCNPJ(value: string) {
   return d.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5");
 }
 
-export function formatCPFOrCNPJ(value: string) {
-  const d = digitsOnly(value);
-  if (d.length <= 11) return formatCPF(value);
-  return formatCNPJ(value);
+export function formatCPFOrCNPJ(value: string, clean: boolean = false) {
+  const d = value.replace(/\D/g, ''); // Garante que temos apenas dígitos
+
+  if (clean) return d;
+
+  if (d.length <= 11) {
+    return d.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+  } else {
+    return d.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
+  }
 }
 
 export function formatCEP(value: string) {
@@ -33,6 +39,36 @@ export function formatCEP(value: string) {
   if (d.length <= 5) return d;
   return d.replace(/^(\d{5})(\d{1,3})$/, "$1-$2");
 }
+
+// export function formatCPFOrCNPJ(value: string, clean: boolean = false) {
+//   const d = value.replace(/\D/g, ''); // Garante que temos apenas dígitos
+
+//   if (clean) return d;
+
+//   if (d.length <= 11) {
+//     return d.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+//   } else {
+//     return d.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
+//   }
+// }
+
+// /**
+//  * Formata o CEP para exibição visual (com hífen)
+//  * Ou retorna apenas números para envio a bancos/APIs
+//  */
+// export function formatCEP(value: string, clean: boolean = false): string {
+//   const d = value.replace(/\D/g, '').slice(0, 8); // Remove tudo que não for dígito e limita a 8 caracteres
+
+//   if (clean) {
+//     return d; // Retorna apenas 12345678
+//   }
+
+//   if (d.length <= 5) {
+//     return d;
+//   }
+  
+//   return d.replace(/^(\d{5})(\d{1,3})$/, "$1-$2");
+// }
 
 export function formatPhone(value: string) {
   const d = digitsOnly(value).slice(0, 11);

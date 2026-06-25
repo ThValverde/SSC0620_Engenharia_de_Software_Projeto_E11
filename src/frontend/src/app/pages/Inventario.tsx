@@ -793,11 +793,10 @@ export function Inventario() {
       payload.contatos = contatos;
     }
 
-    // Mapear endereco (1:1 com Endereco)
     if (data.endereco || data.cep) {
       payload.endereco = {
         rua: data.endereco || "",
-        cep: data.cep || "",
+        cep: data.cep ? data.cep.replace(/\D/g, "") : "",
       };
     }
 
@@ -817,7 +816,14 @@ export function Inventario() {
 
   const handleSave = async () => {
     if (!formData.razaoSocial || !formData.segmento) return;
-
+    if (formData.segmento === "Serviço de Apoio" && !formData.tipoServico) {
+      toast.error("O campo 'Tipo de Serviço' é obrigatório. Preencha-o na aba de Infraestrutura.");
+      return;
+    }
+    if (formData.segmento === "RHC" && !formData.tipoImovelRHC) {
+      toast.error("O campo 'Tipo de Imóvel' é obrigatório. Preencha-o na aba de Infraestrutura.");
+      return;
+    }
     setSaving(true);
     try {
       const isEdit = editId !== null;

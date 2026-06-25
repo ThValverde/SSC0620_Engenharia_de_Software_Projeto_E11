@@ -170,16 +170,16 @@ export function LoginPage() {
                 Thiago de Castro Valverde - 14609241 - Porduct Owner/Developer
             </p>
               <p className="text-xs text-gray-500 text-center">   
-              Artur Rossoni Baraldi - Developer
+              Artur Rossoni Baraldi - 16983730 - Developer
             </p>
               <p className="text-xs text-gray-500 text-center">
-              Felipe de Oliveira Gomes - Developer
+              Felipe de Oliveira Gomes - 14613841 - Developer
             </p>
               <p className="text-xs text-gray-500 text-center">
-              Leonardo Silva Cardoso - Developer
+              Leonardo Silva Cardoso - 14588200 - Developer
             </p>
               <p className="text-xs text-gray-500 text-center">
-              Leonardo Codeceira Goncalves Pinto - Developer
+              Leonardo Codeceira Goncalves Pinto - 14588509 - Developer
             </p>
           </div>
           </CardContent>
@@ -187,7 +187,7 @@ export function LoginPage() {
 
         {/* Footer */}
         <p className="text-center text-white/50 text-xs mt-6">
-          v1.0.0 · Olímpia Turismo © 2025
+          v1.0.0 · Observatório de Turismo de Olímpia © 2026
         </p>
       </div>
     </div>

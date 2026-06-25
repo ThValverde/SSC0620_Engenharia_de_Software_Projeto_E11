@@ -130,7 +130,7 @@ function groupImports(
       const sorted = [...records].sort(
         (a, b) => new Date(b.importado_em).getTime() - new Date(a.importado_em).getTime()
       );
-      const folderId = folderMap[sourceKey] ?? folders[index % folders.length]?.id ?? null;
+      const folderId = folderMap[sourceKey] !== undefined ? folderMap[sourceKey] : (folders[index % folders.length]?.id ?? null);
       const title = displayTitles[sourceKey] || sourceKey;
 
       return {
@@ -192,7 +192,6 @@ function FolderPill({ folder, cardCount, isSelected, onSelect, onDrop, onRename,
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => {
         setIsHovered(false);
-        setShowDeleteConfirm(false);
       }}
     >
       <div
@@ -472,15 +471,18 @@ function DraggableCard({
               </span>
             </div>
           </div>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete(card.sourceKey);
-            }}
-            className="p-1.5 rounded-lg text-[#d1d5db] hover:text-red-400 hover:bg-red-50 transition-colors flex-shrink-0"
-          >
-            <Trash2 size={13} />
-          </button>
+              {/* <button
+                type="button"
+                onMouseDown={(e) => e.stopPropagation()} // Bloqueia o "arrastar" antes mesmo do clique acontecer
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onDelete(card.sourceKey);
+                }}
+                className="p-1.5 rounded-lg text-[#d1d5db] hover:text-red-400 hover:bg-red-50 transition-colors flex-shrink-0 relative z-10"
+              >
+                <Trash2 size={13} />
+              </button> */}
         </div>
 
         <div className="flex flex-wrap gap-1 mt-2.5 ml-6">
@@ -509,14 +511,14 @@ function DraggableCard({
                 </a>
                 <span className="text-[10px] text-[#94a3b8] flex-shrink-0">{getFileSizeLabel(att.size)}</span>
                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button
+                  {/* <button
                     className="p-0.5 rounded text-[#94a3b8] hover:text-[#334155] hover:bg-[#e2e8f0] transition-colors"
                     title="Baixar"
                   >
                     <a href={att.url} target="_blank" rel="noreferrer">
                       <Download size={11} />
                     </a>
-                  </button>
+                  </button> */}
                   <button
                     onClick={() => onDeleteAttachment(att.id)}
                     className="p-0.5 rounded text-[#94a3b8] hover:text-red-400 hover:bg-red-50 transition-colors"

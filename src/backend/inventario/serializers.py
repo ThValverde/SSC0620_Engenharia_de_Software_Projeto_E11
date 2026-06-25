@@ -647,6 +647,8 @@ class CatalogStateMixin:
         if qs.count() != len(set(caracteristicas_ids)):
             raise serializers.ValidationError({"caracteristicas": "Uma ou mais características não existem."})
 
+        instance.caracteristicas.clear()
+
         links = []
         for caracteristica in qs:
             link = EstabelecimentoCaracteristica(
@@ -655,7 +657,7 @@ class CatalogStateMixin:
             )
             link.full_clean()
             links.append(link)
-        instance.caracteristicas.clear()
+            
         EstabelecimentoCaracteristica.objects.bulk_create(links)
 
     def _sync_metricas(self, instance, metricas_data):
