@@ -1,3 +1,7 @@
+"""
+Mapeamento de rotas (URLs) da API para o módulo de inventário.
+Registra os endpoints para catálogos, segmentos do trade e painéis gerenciais.
+"""
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from . import views
