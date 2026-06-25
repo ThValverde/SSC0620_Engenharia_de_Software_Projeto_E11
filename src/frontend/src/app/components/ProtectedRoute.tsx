@@ -7,6 +7,11 @@ interface ProtectedRouteProps {
   allowedRoles?: string[];
 }
 
+/**
+ * Bloqueia rotas baseando-se no RBAC (Role-Based Access Control).
+ * Se o usuário não tiver a permissão necessária (ou não for superuser), 
+ * ele é ejetado por padrão para a visão restrita (/portal-trade).
+ */
 export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
   const { user, isAuthenticated, isLoading } = useAuth();
 
@@ -35,6 +40,11 @@ interface SmartRedirectRouteProps {
   children?: React.ReactNode; 
 }
 
+/**
+ * Rota inteligente de entrada ("/") que atua como um "guarda de trânsito" após o login.
+ * Analisa o perfil do usuário e o redireciona automaticamente para sua página inicial correta 
+ * (Dashboard para a Secretaria ou Trade Portal para usuários externos).
+ */
 export function SmartRedirectRoute({ children }: SmartRedirectRouteProps) {
   const { user, isAuthenticated, isLoading } = useAuth();
 
@@ -57,6 +67,9 @@ export function SmartRedirectRoute({ children }: SmartRedirectRouteProps) {
   return <Navigate to="/trade-portal" replace />;
 }
 
+/**
+ * Restringe o acesso de uma rota estritamente para os usuários do Trade Turístico.
+ */
 export function TradeOnlyRoute({ children }: ProtectedRouteProps) {
   const { user, isAuthenticated, isLoading, isTradeUser } = useAuth();
 
