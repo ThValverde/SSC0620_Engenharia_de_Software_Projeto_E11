@@ -11,6 +11,10 @@ interface MockPageProps {
   showComingSoon?: boolean;
 }
 
+/**
+ * Placeholder visual para módulos em desenvolvimento.
+ * Mantém a navegação fluida (sem quebrar a UI) quando o usuário acessa rotas mapeadas para o futuro do MVP.
+ */
 export function MockPage({
   title,
   description = 'Esta página ainda está em desenvolvimento.',
