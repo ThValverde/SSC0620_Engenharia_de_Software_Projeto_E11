@@ -1,17 +1,22 @@
 import { useEffect, useState } from "react";
 import { Check, Pencil, Plus, Save, Trash2, X } from "lucide-react";
 
+/** Representa uma opção individual selecionável dentro do catálogo. */
 export type CatalogOption = {
   id: number;
   categoria: string;
   customizada: boolean;
 };
 
+/** Agrupa um conjunto de opções sob uma mesma categoria. */
 export type CatalogSubgroup = {
   subgrupo_nome: string;
   opcoes: CatalogOption[];
 };
 
+/** * Seção principal do catálogo. 
+ * Pode ser estática ou condicional (exibida apenas se o usuário responder "Sim" na interface).
+ */
 export type CatalogSection = {
   secao_id: number;
   secao_nome: string;
@@ -34,8 +39,15 @@ type Props = {
 };
 
 const normalize = (value: string) => value.trim().toLowerCase();
+
+// Identifica opções que representam a resposta "Não" em seções condicionais
 const isNegativeOption = (option: CatalogOption) => normalize(option.categoria) === "não";
 
+/**
+ * Renderiza um editor em árvore para as categorias do catálogo.
+ * Permite a seleção de opções via checkboxes, controle de visibilidade de seções com perguntas (Sim/Não)
+ * e o gerenciamento (criação, edição, exclusão) de opções customizadas.
+ */
 export function CatalogTreeEditor({
   tree,
   selectedIds,
@@ -55,9 +67,11 @@ export function CatalogTreeEditor({
   const [expandedSections, setExpandedSections] = useState<Record<number, boolean>>({});
   const [creatingKey, setCreatingKey] = useState<string | null>(null);
 
-  // Define apenas o estado INICIAL de cada seção (uma vez por seção).
-  // Não depende de `selectedIds` para não reverter o clique do usuário:
-  // depois de inicializada, a seção só muda quando o usuário clica no Sim/Não.
+  /*
+   * Define apenas o estado INICIAL de expansão de cada seção condicional.
+   * Não incluímos `selectedIds` nas dependências intencionalmente para não reverter
+   * a ação do usuário: após inicializada, a seção só alterna se houver clique no Sim/Não.
+   */
   useEffect(() => {
     setExpandedSections((prev) => {
       const next = { ...prev };
@@ -70,7 +84,6 @@ export function CatalogTreeEditor({
       }
       return next;
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tree]);
 
   const handleToggleSection = (section: CatalogSection, checked: boolean) => {
