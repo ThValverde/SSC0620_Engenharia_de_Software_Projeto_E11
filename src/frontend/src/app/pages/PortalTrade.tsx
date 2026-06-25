@@ -1,3 +1,8 @@
+/**
+ * Tela de administração do Portal do Trade (exclusiva para a Secretaria).
+ * Responsável pelo gerenciamento de credenciais de usuários do trade turístico,
+ * permitindo o CRUD de contas e a vinculação de acessos a estabelecimentos específicos do inventário.
+ */
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { apiService } from "../services/api";
@@ -113,13 +118,11 @@ export function PortalTrade() {
     const load = async () => {
       try {
         setLoading(true);
-        console.log("Carregando Portal Trade...");
         const [tradeUsers, inventoryResults] = await Promise.all([
           apiService.listTradeUsers(),
           Promise.allSettled(inventoryEndpoints.map((endpoint) => apiService.listInventory(endpoint, 100, 1))),
         ]);
 
-        console.log("Trade Users carregados:", tradeUsers.length);
         setUsers(tradeUsers as TradeUserRecord[]);
 
         const options: EstablishmentOption[] = [];
@@ -134,7 +137,6 @@ export function PortalTrade() {
             const items = paginated.results || [];
             successCount++;
 
-            console.log(`${endpoint}: ${items.length} itens carregados`);
             items.forEach((item: any) => {
               options.push({
                 id: Number(item.id),
@@ -150,7 +152,6 @@ export function PortalTrade() {
           }
         });
 
-        console.log(`Estabelecimentos carregados: ${options.length} (${successCount} endpoints OK, ${failCount} falharam)`);
         setEstablishments(options);
       } catch (error) {
         console.error("Erro fatal ao carregar Portal Trade:", error);
