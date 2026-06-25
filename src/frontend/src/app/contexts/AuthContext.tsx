@@ -12,7 +12,6 @@ interface AuthContextType {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
-  // RBAC methods
   hasRole: (role: string) => boolean;
   hasGroup: (group: string) => boolean;
   isSuperuser: () => boolean;
@@ -26,6 +25,10 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
+/**
+ * Matriz de níveis de poder do RBAC.
+ * Usada para impedir que um usuário crie ou edite outro com privilégios maiores que os seus.
+ */
 const roleHierarchy: Record<string, RoleHierarchy> = {
   superuser: { level: 4, name: 'Django Admin' },
   'Secretaria_Admin': { level: 3, name: 'OTO Admin' },
@@ -33,18 +36,20 @@ const roleHierarchy: Record<string, RoleHierarchy> = {
   trade: { level: 1, name: 'Trade User' },
 };
 
+/**
+ * Gerenciador global de sessão e permissões.
+ * Centraliza as regras de negócio de quem pode acessar o quê (RBAC) e mantém 
+ * o estado do usuário sincronizado em toda a aplicação.
+ */
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Initialize from localStorage or verify token
-useEffect(() => {
+  useEffect(() => {
     const initAuth = async () => {
       try {
         const token = apiService.isAuthenticated();
         if (token) {
-          // Em vez de verificar no localStorage, busque SEMPRE o dado atualizado do user
-          // Isso garante que o dashboard sempre tenha dados reais.
           const userData = await apiService.getUser();
           setUser(userData);
         }
@@ -59,14 +64,10 @@ useEffect(() => {
     initAuth();
   }, []);
 
-const login = async (email: string, password: string): Promise<void> => {
-    // 1. Chama a API e salva no localStorage
+  const login = async (email: string, password: string): Promise<void> => {
     await apiService.login(email, password);
-    
-    // 2. A MÁGICA: Atualiza o estado do React imediatamente
     const loggedUser = apiService.getCurrentUser();
     setUser(loggedUser);
-    // Removemos o setIsAuthenticated pois o Contexto calcula isso dinamicamente usando o 'user'
   };
 
   const logout = () => {
@@ -74,8 +75,7 @@ const login = async (email: string, password: string): Promise<void> => {
     setUser(null);
   };
 
-  // RBAC Helper Methods
-const hasRole = (role: string): boolean => {
+  const hasRole = (role: string): boolean => {
     if (!user) return false;
     if (role === 'superuser') return !!user.is_superuser;
     return Array.isArray(user.groups) && user.groups.includes(role);
@@ -93,7 +93,6 @@ const hasRole = (role: string): boolean => {
   const isSecretariaStaff = (): boolean => hasGroup('Secretaria_Staff');
 
   const isTradeUser = (): boolean => {
-    // Trade users have empty groups or specific trade-related setup
     if (!user) return false;
     return !user.is_superuser && !hasGroup('Secretaria_Admin') && !hasGroup('Secretaria_Staff');
   };
@@ -106,39 +105,39 @@ const hasRole = (role: string): boolean => {
     return roleHierarchy.trade.level;
   };
 
+  /**
+   * Valida a hierarquia na criação de contas (Prevenção de escalada de privilégios).
+   */
   const canCreateUser = (targetUserType: string): boolean => {
     if (!user) return false;
 
-    const currentLevel = getRoleLevel();
-
-    // Superuser can create Secretaria_Admin
     if (isSuperuser() && targetUserType === 'Secretaria_Admin') return true;
 
-    // Secretaria_Admin can create Secretaria_Staff and Trade users
     if (isSecretariaAdmin()) {
       return ['Secretaria_Staff', 'Trade'].includes(targetUserType);
     }
 
-    // Secretaria_Staff can only create Trade users
     if (isSecretariaStaff() && targetUserType === 'Trade') return true;
 
     return false;
   };
 
+  /**
+   * Guarda de rotas modular (Restrição horizontal).
+   * Define limites rígidos do que cada perfil visualiza, impedindo que o Trade 
+   * acesse módulos internos da Secretaria e vice-versa.
+   */
   const canAccessModule = (module: 'users' | 'inventory' | 'import' | 'crossing' | 'history' | 'portal'): boolean => {
     if (!user) return false;
 
-    // User management: only superuser or Secretaria_Admin can access
     if (module === 'users') {
       return isSuperuser() || isSecretariaAdmin();
     }
 
-    // Trade users can only access portal
     if (isTradeUser()) {
       return module === 'portal';
     }
 
-    // Admins can access all modules
     return true;
   };
 
