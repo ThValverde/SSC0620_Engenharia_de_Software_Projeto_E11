@@ -1,3 +1,8 @@
+/**
+ * Tela de Cruzamento de Dados.
+ * Atualmente renderiza um componente de placeholder indicando que o módulo 
+ * de consultas avançadas e análises está em desenvolvimento.
+ */
 import { Database } from "lucide-react";
 import { MockPage } from "../components/MockPage";
 
