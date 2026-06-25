@@ -1,7 +1,7 @@
 /**
  * Interface de histórico e gerenciamento de arquivos importados.
  * Permite organizar buscas em pastas (drag and drop), anexar novos documentos (pdf, png, jpg, xlsx),
- * e consultar metadados das importações prévias[cite: 8].
+ * e consultar metadados das importações prévias.
  */
 import { useEffect, useMemo, useState } from "react";
 import { useDrag, useDrop } from "react-dnd";
