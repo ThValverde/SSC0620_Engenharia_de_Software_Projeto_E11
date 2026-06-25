@@ -1,7 +1,6 @@
 from django.contrib.auth.models import User, Group
 from rest_framework import serializers
 
-# Importando os modelos do arquivo models.py da mesma pasta (.)
 from .models import (
     Endereco,
     Contato,
@@ -39,11 +38,13 @@ from .models import (
 # 0. SERIALIZERS DE AUTENTICAÇÃO E AUTORIZAÇÃO
 #==========================================
 class CadastroUsuarioHierarquicoSerializer(serializers.Serializer):
+    """
+    Valida e gerencia a criação hierárquica de usuários no sistema OTO.
+    """
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True)
     tipo_usuario = serializers.ChoiceField(choices=['adm_oto', 'usuario_oto', 'trade'])
     
-    # Campos obrigatórios caso o tipo seja 'trade'
     estabelecimento_id = serializers.IntegerField(required=False, allow_null=True)
     nivel_permissao = serializers.CharField(required=False, allow_blank=True, default='Operacional')
 
@@ -57,34 +58,25 @@ class CadastroUsuarioHierarquicoSerializer(serializers.Serializer):
         user_logado = request.user
         tipo_a_criar = data['tipo_usuario']
 
-        # 1. Se quem está tentando cadastrar for o Superuser do Django (Via terminal ou painel admin)
         if user_logado.is_superuser:
-            # O Superuser tem permissão total para criar qualquer nível
             return data
 
-        # Mapeamento de grupos do usuário logado
         is_adm_oto = user_logado.groups.filter(name='Secretaria_Admin').exists()
         is_user_oto = user_logado.groups.filter(name='Secretaria_Staff').exists()
 
-        # 2. Regra para criar um Administrador do Observatório (Adm OTO)
         if tipo_a_criar == 'adm_oto':
-            # APENAS o Admin do Django (Superuser) pode criar um Adm OTO
             if not user_logado.is_superuser:
                 raise serializers.ValidationError(
                     {"permissao": "Apenas administradores centrais de TI (Superuser Django) podem criar um Administrador do OTO."}
                 )
 
-        # 3. Regra para criar um Usuário do Observatório (Usuário OTO)
         elif tipo_a_criar == 'usuario_oto':
-            # APENAS Superuser ou Adm OTO podem criar um Usuário OTO comum
             if not is_adm_oto:
                 raise serializers.ValidationError(
                     {"permissao": "Você precisa ser um Administrador do OTO para cadastrar um usuário da secretaria."}
                 )
 
-        # 4. Regra para criar um Usuário do Trade (Empresários/Hoteleiros)
         elif tipo_a_criar == 'trade':
-            # Tanto o Adm OTO quanto o Usuário OTO podem cadastrar o Trade
             if not is_adm_oto and not is_user_oto:
                 raise serializers.ValidationError(
                     {"permissao": "Usuários do Trade não possuem permissão para cadastrar outras contas."}
@@ -102,7 +94,6 @@ class CadastroUsuarioHierarquicoSerializer(serializers.Serializer):
         password = validated_data['password']
         tipo_usuario = validated_data['tipo_usuario']
         
-        # Criação do usuário padrão do Django
         user = User.objects.create_user(username=email, email=email, password=password)
 
         if tipo_usuario == 'adm_oto':
@@ -118,7 +109,6 @@ class CadastroUsuarioHierarquicoSerializer(serializers.Serializer):
             nivel = validated_data['nivel_permissao']
             estabelecimento = Estabelecimento.objects.get(pk=est_id)
             
-            # Cria o vínculo na tabela intermediária do banco
             VinculoTrade.objects.create(
                 usuario=user,
                 estabelecimento=estabelecimento,
@@ -128,6 +118,9 @@ class CadastroUsuarioHierarquicoSerializer(serializers.Serializer):
         return user
 
 class CustomUserDetailsSerializer(serializers.ModelSerializer):
+    """
+    Retorna os detalhes do usuário autenticado incluindo seus grupos associados.
+    """
     groups = serializers.SlugRelatedField(
         many=True,
         read_only=True,
@@ -140,6 +133,9 @@ class CustomUserDetailsSerializer(serializers.ModelSerializer):
 
 
 class UserAdminSerializer(serializers.ModelSerializer):
+    """
+    Gerencia as operações de CRUD de usuários efetuadas pela administração da Secretaria.
+    """
     password = serializers.CharField(write_only=True, required=False, allow_blank=False)
     groups = serializers.SlugRelatedField(
         many=True,
@@ -214,6 +210,9 @@ class UserAdminSerializer(serializers.ModelSerializer):
 
 
 class TradeUserSerializer(serializers.ModelSerializer):
+    """
+    Gerencia dados de usuários vinculados a estabelecimentos comerciais parceiros.
+    """
     password = serializers.CharField(write_only=True, required=False, allow_blank=False)
     estabelecimento_id = serializers.IntegerField(write_only=True, required=False, allow_null=True)
     nivel_permissao = serializers.ChoiceField(
@@ -420,6 +419,9 @@ class TradePortalMaoDeObraSerializer(serializers.Serializer):
 
 
 class ODSStateField(serializers.Field):
+    """
+    Campo customizado para tratar a validação e conversão dos dados estruturados de ODS.
+    """
     def get_attribute(self, instance):
         return instance
 
@@ -468,6 +470,9 @@ class ODSStateField(serializers.Field):
 
 
 class ODSStateMixin:
+    """
+    Mixin utilitário para sincronização e serialização de estados dos Indicadores ODS.
+    """
     sustentabilidade = ODSStateField(required=False)
 
     def _ods_queryset(self):
@@ -571,6 +576,9 @@ class ODSStateMixin:
 
 
 class CaracteristicasStateField(serializers.Field):
+    """
+    Campo para tratamento e representação da lista de características categóricas (EAV).
+    """
     def __init__(self, scope_getter, **kwargs):
         self.scope_getter = scope_getter
         super().__init__(**kwargs)
@@ -601,6 +609,9 @@ class CaracteristicasStateField(serializers.Field):
 
 
 class MetricasStateField(serializers.Field):
+    """
+    Campo para tratamento e representação das medições numéricas quantitativas (EAV).
+    """
     def get_attribute(self, instance):
         return instance
 
@@ -636,6 +647,9 @@ class MetricasStateField(serializers.Field):
 
 
 class CatalogStateMixin:
+    """
+    Mixin utilitário para sincronização de características e métricas EAV.
+    """
     def _sync_caracteristicas(self, instance, caracteristicas_ids):
         if caracteristicas_ids is None:
             return
@@ -693,6 +707,9 @@ class CatalogStateMixin:
 
 
 class TradePortalMeuEstabelecimentoSerializer(CatalogStateMixin, ODSStateMixin, serializers.Serializer):
+    """
+    Serializer de uso geral para renderização unificada dos dados do trade no portal.
+    """
     id = serializers.IntegerField(read_only=True)
     tipo = serializers.CharField(read_only=True)
     tipo_label = serializers.CharField(read_only=True)
@@ -921,8 +938,7 @@ class RedeSocialSerializer(serializers.ModelSerializer):
 
 class RegistroBaseSerializer(CatalogStateMixin, ODSStateMixin, serializers.ModelSerializer):
     """
-    Serializer base que lida automaticamente com Endereço e Contatos
-    para qualquer filha de RegistroInventario.
+    Serializer abstrato base para gerenciar dados aninhados globais das entidades.
     """
     endereco = EnderecoSerializer(required=False, allow_null=True)
     contatos = ContatoSerializer(many=True, required=False)
@@ -1034,7 +1050,6 @@ class MeioHospedagemSerializer(RegistroBaseSerializer):
         
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Limita o visualizador HTML do navegador a exibir APENAS características de hospedagem
         if 'caracteristicas' in self.fields:
             self.fields['caracteristicas'].queryset = Caracteristica.objects.filter(
                 escopo=EscopoCatalogo.MEIO_HOSPEDAGEM
@@ -1122,9 +1137,7 @@ class TaxiAplicativoSerializer(RegistroBaseSerializer):
 
 class CadastroUsuarioSerializer(serializers.Serializer):
     """
-    Serializer para criação de usuários com controle estrito de RBAC.
-    Previne escalonamento de privilégios aplicando regras de negócio
-    no método validate() e criando os vínculos apropriados no create().
+    Serializer estruturado para criação e vinculação de usuários com validações RBAC.
     """
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True)
@@ -1140,12 +1153,6 @@ class CadastroUsuarioSerializer(serializers.Serializer):
     )
 
     def validate(self, data):
-        """
-        Aplicar regras RBAC para prevenir escalonamento de privilégios:
-        - admin_oto: apenas superuser pode criar
-        - usuario_oto: apenas superuser ou Secretaria_Admin pode criar
-        - trade: superuser, Secretaria_Admin ou Secretaria_Staff podem criar (obrigatório estabelecimento_id)
-        """
         from django.contrib.auth.models import User, Group
         from rest_framework.exceptions import PermissionDenied, ValidationError
 
@@ -1156,14 +1163,12 @@ class CadastroUsuarioSerializer(serializers.Serializer):
         current_user = request.user
         tipo_usuario = data.get('tipo_usuario')
 
-        # Regra 1: admin_oto - apenas superuser pode criar
         if tipo_usuario == 'admin_oto':
             if not current_user.is_superuser:
                 raise PermissionDenied(
                     'Apenas superuser pode criar usuários do tipo admin_oto.'
                 )
 
-        # Regra 2: usuario_oto - apenas superuser ou Secretaria_Admin
         elif tipo_usuario == 'usuario_oto':
             is_admin = current_user.groups.filter(name='Secretaria_Admin').exists()
             if not (current_user.is_superuser or is_admin):
@@ -1171,7 +1176,6 @@ class CadastroUsuarioSerializer(serializers.Serializer):
                     'Apenas superuser ou membros de Secretaria_Admin podem criar usuários do tipo usuario_oto.'
                 )
 
-        # Regra 3: trade - superuser, Secretaria_Admin ou Secretaria_Staff
         elif tipo_usuario == 'trade':
             is_admin = current_user.groups.filter(name='Secretaria_Admin').exists()
             is_staff = current_user.groups.filter(name='Secretaria_Staff').exists()
@@ -1180,7 +1184,6 @@ class CadastroUsuarioSerializer(serializers.Serializer):
                     'Apenas superuser, Secretaria_Admin ou Secretaria_Staff podem criar usuários do tipo trade.'
                 )
             
-            # Validar que estabelecimento_id foi fornecido para trade
             if not data.get('estabelecimento_id'):
                 raise ValidationError({
                     'estabelecimento_id': 'Este campo é obrigatório para usuários do tipo trade.'
@@ -1189,12 +1192,6 @@ class CadastroUsuarioSerializer(serializers.Serializer):
         return data
 
     def create(self, validated_data):
-        """
-        Criar usuário e associá-lo aos grupos e vínculos apropriados:
-        - admin_oto: adiciona ao grupo Secretaria_Admin, é_staff e is_superuser
-        - usuario_oto: adiciona ao grupo Secretaria_Staff, é_staff
-        - trade: cria VinculoTrade com o estabelecimento e nível de permissão
-        """
         from django.contrib.auth.models import User, Group
         from .models import Estabelecimento, VinculoTrade
 
@@ -1204,20 +1201,17 @@ class CadastroUsuarioSerializer(serializers.Serializer):
         estabelecimento_id = validated_data.get('estabelecimento_id')
         nivel_permissao = validated_data.get('nivel_permissao', 'visualizador')
 
-        # Criar usuário
         user = User.objects.create_user(
-            username=validated_data.get('username'), # Usa o username do formulário
+            username=validated_data.get('username'), 
             email=validated_data['email'],
             password=validated_data['password'],
             first_name=validated_data.get('first_name', ''),
             last_name=validated_data.get('last_name', '')
         )
 
-        # Garantir que os grupos existem (usar get_or_create)
         admin_oto_group, _ = Group.objects.get_or_create(name='Secretaria_Admin')
         staff_oto_group, _ = Group.objects.get_or_create(name='Secretaria_Staff')
 
-        # Adicionar ao grupo apropriado e configurar permissões de staff
         if tipo_usuario == 'admin_oto':
             user.groups.add(admin_oto_group)
             user.is_staff = True
@@ -1231,16 +1225,14 @@ class CadastroUsuarioSerializer(serializers.Serializer):
             user.save()
 
         elif tipo_usuario == 'trade':
-            # Buscar o estabelecimento
             try:
                 estabelecimento = Estabelecimento.objects.get(id=estabelecimento_id)
             except Estabelecimento.DoesNotExist:
-                user.delete()  # Desfazer criação do usuário se estabelecimento não existe
+                user.delete()  
                 raise serializers.ValidationError({
                     'estabelecimento_id': f'Estabelecimento com ID {estabelecimento_id} não existe.'
                 })
 
-            # Criar VinculoTrade
             VinculoTrade.objects.create(
                 usuario=user,
                 estabelecimento=estabelecimento,
