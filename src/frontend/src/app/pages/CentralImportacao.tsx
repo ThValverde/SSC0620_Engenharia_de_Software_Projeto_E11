@@ -1,3 +1,8 @@
+/**
+ * Tela da Central de Importação.
+ * Atualmente renderiza um componente de placeholder indicando que o módulo 
+ * de upload e processamento de dados turísticos está em desenvolvimento.
+ */
 import { UploadCloud } from "lucide-react";
 import { MockPage } from "../components/MockPage";
 
