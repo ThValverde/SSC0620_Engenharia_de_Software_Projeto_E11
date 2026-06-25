@@ -1,3 +1,7 @@
+/**
+ * Dashboard principal de indicadores do inventário turístico.
+ * Consome o endpoint de resumo do backend para renderizar métricas em tempo real.
+ */
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { apiService } from "../services/api";
@@ -10,8 +14,6 @@ import {
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
 } from "recharts";
-
-// ─── Estado atual (presente) ──────────────────────────────────────────────────
 
 const DADOS_ATUAIS = {
   banco: { totalEntidades: 0, totalEmpresas: 0, ultimaAtualizacao: "—" },
@@ -37,8 +39,6 @@ type OdsCard = {
 function formatMetric(value: number | null | undefined) {
   return value == null ? "—" : value.toLocaleString("pt-BR");
 }
-
-// ─── Componente de Donut pequeno para CADASTUR ─────────────────────────────────
 
 function MiniDonut({ percent, color }: { percent: number; color: string }) {
   const data = [
@@ -74,8 +74,6 @@ function MiniDonut({ percent, color }: { percent: number; color: string }) {
     </div>
   );
 }
-
-// ─── Componente de Donut ODS ──────────────────────────────────────────────────
 
 function OdsDonut({
   titulo, subtitulo, cor, data, percent,
@@ -130,36 +128,30 @@ function OdsDonut({
   );
 }
 
-// ─── Dashboard ────────────────────────────────────────────────────────────────
-
 export function Dashboard() {
   const { user, isLoading } = useAuth();
 
-  // 1. Criamos um estado para guardar os dados reais
   const [dashboardData, setDashboardData] = useState<any>(null);
   const [loadingData, setLoadingData] = useState(true);
 
-  // 2. Quando a tela abre, pedimos os dados à API
   useEffect(() => {
     const fetchDashboard = async () => {
       try {
         const data = await apiService.getDashboardResumo();
-        setDashboardData(data); // Guarda os dados reais no estado!
+        setDashboardData(data);
       } catch (error) {
         console.error("Backend inacessível. Usando estado vazio.", error);
         setDashboardData(DADOS_ATUAIS);
       } finally {
-        setLoadingData(false); // Esconde a ampulheta
+        setLoadingData(false);
       }
     };
 
-    // Só pede os dados se o utilizador já tiver passado pelo AuthContext
     if (!isLoading && user) {
       fetchDashboard();
     }
   }, [user, isLoading]);
 
-  // 3. Ecrãs de Carregamento (Loading States)
   if (isLoading) {
     return <div className="p-10 text-[#64748b]">Verificando acessos...</div>;
   }
@@ -175,15 +167,11 @@ export function Dashboard() {
 
   if (!user) return null;
 
-  // 4. A MÁGICA: Em vez de usar DADOS_ATUAIS estáticos, usamos o estado 'dashboardData'
   const snap = dashboardData;
 
   return (
     <div className="p-6 space-y-6">
 
-      {/* ══════════════════════════════════════════════════════════
-          BLOCO 0 — Cabeçalho de página
-      ══════════════════════════════════════════════════════════ */}
       <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-[#0c2340]">Dashboard Inicial</h1>
@@ -199,11 +187,6 @@ export function Dashboard() {
         </div>
       </div>
 
-      {/* ══════════════════════════════════════════════════════════
-          BLOCO 1 — Status do Banco + Mão de Obra em destaque
-      ══════════════════════════════════════════════════════════ */}
-
-      {/* Banner de Status do Banco */}
       <div className="flex items-center gap-4 bg-[#0c2340] rounded-xl px-6 py-4 shadow-md">
         <div className="flex items-center gap-3 flex-1">
           <div className="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center flex-shrink-0">
@@ -238,7 +221,6 @@ export function Dashboard() {
         </div>
       </div>
 
-      {/* Widget Mão de Obra — destaque principal */}
       <div className="bg-gradient-to-br from-[#1a6fbf] to-[#0c2340] rounded-xl p-6 shadow-md">
         <div className="flex items-start justify-between">
           <div>
@@ -259,7 +241,6 @@ export function Dashboard() {
           </div>
         </div>
 
-        {/* Subdivisão Fixos / Temporários */}
         <div className="grid grid-cols-2 gap-4 mt-6">
           <div className="bg-white/10 rounded-xl p-4">
             <div className="flex items-center gap-2 mb-2">
@@ -284,9 +265,6 @@ export function Dashboard() {
         </div>
       </div>
 
-      {/* ══════════════════════════════════════════════════════════
-          BLOCO 2 — Consolidado CADASTUR
-      ══════════════════════════════════════════════════════════ */}
       <div>
         <div className="flex items-center gap-2 mb-4">
           <Shield size={18} className="text-[#1a6fbf]" />
@@ -295,7 +273,6 @@ export function Dashboard() {
         </div>
 
         <div className="grid grid-cols-4 gap-4">
-          {/* Total de Empresas */}
           <div className="bg-white rounded-xl border border-[#e2e8f0] p-5 shadow-sm flex items-center gap-4">
             <div className="w-12 h-12 bg-blue-50 rounded-lg flex items-center justify-center flex-shrink-0">
               <Building2 size={24} className="text-[#1a6fbf]" />
@@ -309,7 +286,6 @@ export function Dashboard() {
             </div>
           </div>
 
-          {/* Total CADASTUR */}
           <div className="bg-white rounded-xl border border-[#e2e8f0] p-5 shadow-sm flex items-center gap-4">
             <div className="w-12 h-12 bg-violet-50 rounded-lg flex items-center justify-center flex-shrink-0">
               <CheckCircle2 size={24} className="text-violet-600" />
@@ -323,7 +299,6 @@ export function Dashboard() {
             </div>
           </div>
 
-          {/* % Regularização com Donut */}
           <div className="bg-white rounded-xl border border-[#e2e8f0] p-5 shadow-sm flex items-center gap-4">
             <MiniDonut percent={snap.cadastur.percentual} color="#8b5cf6" />
             <div>
@@ -333,7 +308,6 @@ export function Dashboard() {
             </div>
           </div>
 
-          {/* Ativo / Inativo — novo campo de status global */}
           <div className="bg-white rounded-xl border border-[#e2e8f0] p-5 shadow-sm">
             <p className="text-[#64748b] text-xs font-medium mb-3">Status das Entidades</p>
             <MiniDonut
@@ -360,9 +334,6 @@ export function Dashboard() {
         </div>
       </div>
 
-      {/* ══════════════════════════════════════════════════════════
-          BLOCO 3 — Infraestrutura Turística
-      ══════════════════════════════════════════════════════════ */}
       <div>
         <div className="flex items-center gap-2 mb-4">
           <Hotel size={18} className="text-[#1a6fbf]" />
@@ -370,7 +341,6 @@ export function Dashboard() {
           <span className="ml-2 text-xs text-[#94a3b8] font-normal">Dados consolidados de capacidade instalada</span>
         </div>
 
-        {/* Grid principal */}
         <div className="grid grid-cols-4 gap-4 mb-4">
           {[
             { label: "Meios de Hospedagem", value: snap.infra.meiosHospedagem, icon: Hotel, color: "text-[#1a6fbf]", bg: "bg-blue-50", suffix: "estabelecimentos" },
@@ -392,7 +362,6 @@ export function Dashboard() {
           })}
         </div>
 
-        {/* Subgrupo — Irregulares (fundo alerta) */}
         <div className="grid grid-cols-2 gap-4 mb-4">
           {[
             { label: "Meios de Hospedagem Irregular", value: snap.infra.meiosIrregulares, icon: AlertTriangle, desc: "sem licença ou CADASTUR" },
@@ -414,7 +383,6 @@ export function Dashboard() {
           })}
         </div>
 
-        {/* Painel de totais e estimativas — tipografia grande */}
         <div className="grid grid-cols-3 gap-4">
           {[
             { label: "Total Geral de UHs", value: snap.infra.totalGeralUHs.toLocaleString("pt-BR"), icon: KeyRound, color: "text-[#1a6fbf]", desc: "incluindo temporada" },
@@ -434,9 +402,6 @@ export function Dashboard() {
         </div>
       </div>
 
-      {/* ══════════════════════════════════════════════════════════
-          BLOCO 4 — Módulo ODS - Agenda 2030
-      ══════════════════════════════════════════════════════════ */}
       <div>
         <div className="flex items-center gap-2 mb-4">
           <Leaf size={18} className="text-emerald-600" />
