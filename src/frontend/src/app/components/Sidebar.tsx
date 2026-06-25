@@ -73,6 +73,10 @@ const baseNavItems: NavItem[] = [
   },
 ];
 
+/**
+ * Menu de navegação lateral (Sidebar).
+ * Constrói dinamicamente os itens do menu baseando-se no perfil (RBAC) e nas permissões modulares do usuário ativo.
+ */
 export function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -94,6 +98,7 @@ export function Sidebar() {
     }
 
     if (!item.requiresRole) return true;
+    
     return item.requiresRole.some((role) => {
       if (role === "Secretaria_Admin" || role === "Secretaria_Staff") {
         return !isTradeUser();
@@ -158,10 +163,12 @@ export function Sidebar() {
         </p>
         {filteredNavItems.map((item) => {
           const Icon = item.icon;
+          
           const to = item.to === "/portal-trade" ? (isTradeUser() ? "/trade-portal" : "/portal-trade") : item.to;
           const active = isActive(to);
           const label = item.to === "/portal-trade" ? (isTradeUser() ? "Meu Portal" : "Portal do Trade") : item.label;
           const sublabel = item.to === "/portal-trade" ? (isTradeUser() ? "Autoatendimento" : "Gestão do Trade") : item.sublabel;
+          
           return (
             <NavLink
               key={item.to}
