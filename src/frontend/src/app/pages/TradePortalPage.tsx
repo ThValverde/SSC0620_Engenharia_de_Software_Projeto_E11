@@ -1,3 +1,8 @@
+/**
+ * Painel de autoatendimento para o usuário do Trade Turístico.
+ * Permite que proprietários e gestores visualizem e editem os dados de seu próprio estabelecimento
+ * (informações gerais, infraestrutura, mão de obra e sustentabilidade) respeitando seu nível de permissão.
+ */
 import { useEffect, useMemo, useState } from "react";
 import { Building2, Loader2, Plus, Save, Shield, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -284,7 +289,6 @@ export function TradePortalPage() {
   const updateContact = (index: number, field: keyof ContactForm, value: string) => {
     let newValue = value;
     if (field === "telefone") {
-      // keep formatted phone for display
       newValue = formatPhone(value);
     }
     setForm((prev) => ({
@@ -327,8 +331,6 @@ export function TradePortalPage() {
 
     setForm((prev) => {
       const current = new Set(prev.caracteristicasSelecionadas);
-      // Responder "Não" (ou reabrir a pergunta) limpa as marcações desta seção.
-      // Não existe mais opção "Não" no catálogo: ausência de marcação = não possui.
       sectionIds.forEach((id) => current.delete(id));
       return {
         ...prev,
