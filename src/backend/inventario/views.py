@@ -32,13 +32,11 @@ from .serializers import (
     CadastroUsuarioSerializer, TradeUserSerializer, TradePortalMeuEstabelecimentoSerializer
 )
 
-# CLASSES BASE DE SEGURANÇA (DRY)===================
 
 class EstabelecimentoBaseViewSet(viewsets.ModelViewSet):
     """
-    Aplica a segurança para todas as empresas do trade.
-    - Protege a edição (permissions_classes)
-    - Filtra a listagem (get_queryset) para o Trade só ver seus próprios negócios.
+    Aplica restrições de acesso baseadas em RBAC.
+    Usuários do Trade visualizam e editam apenas os registros aos quais possuem vínculo.
     """
     permission_classes = [IsTradeOwnerOrSecretaria]
 
@@ -84,10 +82,6 @@ class EstabelecimentoBaseViewSet(viewsets.ModelViewSet):
                 raise PermissionDenied('Somente administrador do trade pode remover o estabelecimento.')
         instance.delete()
 
-
-# 1. VIEWS DE CATÁLOGO (Listas de Apoio)
-# trade pode apenas LER. Secretaria pode EDITAR.
-
 class PagamentoViewSet(viewsets.ModelViewSet):
     queryset = Pagamento.objects.all()
     serializer_class = PagamentoSerializer
@@ -101,8 +95,8 @@ class CaracteristicaViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], url_path='arvore')
     def arvore(self, request):
         """
-        Retorna a estrutura EAV aninhada em 3 níveis filtrada por escopo.
-        Exemplo de uso: /api/inventario/caracteristicas/arvore/?escopo=meio_hospedagem
+        Retorna a estrutura do catálogo EAV aninhada em 3 níveis (Seção > Subgrupo > Opção),
+        filtrada pelo escopo informado via query param.
         """
         escopo = request.query_params.get('escopo')
         if not escopo:
@@ -112,34 +106,28 @@ class CaracteristicaViewSet(viewsets.ModelViewSet):
                 status=400
             )
             
-        # 1. Filtra as Seções (Nível 1) pertencentes ao escopo
         secoes = Secao.objects.filter(escopo=escopo).order_by('ordem')
         
         estrutura = []
         for secao in secoes:
-            # Captura todas as características vinculadas a esta seção específica
             caracteristicas_secao = Caracteristica.objects.filter(secao=secao)
             
-            # 2. Agrupa os itens dinamicamente pelo atributo 'nome' (Nível 2 - Subgrupo)
             subgrupos_dict = {}
             for carac in caracteristicas_secao:
                 if carac.nome not in subgrupos_dict:
                     subgrupos_dict[carac.nome] = []
                 
-                # Injeta a opção (Nível 3 - Categoria)
                 subgrupos_dict[carac.nome].append({
                     "id": carac.id,
                     "categoria": carac.categoria,
                     "customizada": carac.customizada
                 })
             
-            # Transforma o dicionário temporário em uma lista estruturada para o JSON
             lista_subgrupos = [
                 {"subgrupo_nome": nome_subgrupo, "opcoes": opcoes}
                 for nome_subgrupo, opcoes in subgrupos_dict.items()
             ]
             
-            # Monta o nó principal da árvore
             estrutura.append({
                 "secao_id": secao.id,
                 "secao_nome": secao.nome,
@@ -159,7 +147,6 @@ class ODSViewSet(viewsets.ModelViewSet):
     serializer_class = ODSSerializer
     permission_classes = [IsSecretariaOrReadOnly]
 
-# VIEWS DAS ENTIDADES PRINCIPAIS =======================
 
 class MeioHospedagemViewSet(EstabelecimentoBaseViewSet):
     queryset = MeioHospedagem.objects.all()
@@ -210,9 +197,6 @@ class ServicoApoioViewSet(EstabelecimentoBaseViewSet):
     serializer_class = ServicoApoioSerializer
 
 
-# VIEWS DAS ENTIDADES INDEPENDENTES ===================
-# não possuem VinculoTrade
-
 class GuiaTurismoViewSet(viewsets.ModelViewSet):
     queryset = GuiaTurismo.objects.all()
     serializer_class = GuiaTurismoSerializer
@@ -235,6 +219,10 @@ class TaxiAplicativoViewSet(viewsets.ModelViewSet):
 
 
 class UserAdminViewSet(viewsets.ModelViewSet):
+    """
+    Gerencia contas administrativas (Secretaria). 
+    Filtra e exclui ativamente usuários vinculados ao Trade da listagem.
+    """
     queryset = User.objects.all().order_by('username')
     serializer_class = UserAdminSerializer
     permission_classes = [IsSuperuserOrSecretariaAdmin]
@@ -265,6 +253,10 @@ class UserAdminViewSet(viewsets.ModelViewSet):
 
 
 class TradeUserViewSet(viewsets.ModelViewSet):
+    """
+    Gerencia contas de parceiros (Trade). 
+    Lista exclusivamente usuários que possuem vínculo com algum estabelecimento.
+    """
     queryset = User.objects.filter(vinculos_trade__isnull=False).distinct().order_by('username')
     serializer_class = TradeUserSerializer
     permission_classes = [IsSuperuserOrSecretariaAny]
@@ -277,6 +269,9 @@ class TradeUserViewSet(viewsets.ModelViewSet):
 
 
 class TradePortalResumoView(APIView):
+    """
+    Retorna o escopo de estabelecimentos vinculados ao usuário do Trade autenticado.
+    """
     permission_classes = [IsTradeUserOnly]
 
     def get(self, request):
@@ -333,6 +328,9 @@ class TradePortalResumoView(APIView):
 
 
 class TradeMeuEstabelecimentoView(APIView):
+    """
+    Permite ao usuário do Trade visualizar e editar os dados do seu próprio estabelecimento.
+    """
     permission_classes = [IsTradeUserOnly]
 
     def get_vinculo(self, user):
@@ -367,31 +365,10 @@ class TradeMeuEstabelecimentoView(APIView):
         )
 
 
-# =====================================================
-# ENDPOINT DE CADASTRO DE USUÁRIOS (RBAC)
-# =====================================================
-
 class CadastrarUsuarioView(APIView):
     """
-    Endpoint para criação de usuários com controle estrito de RBAC.
-    
-    POST /api/auth/cadastrar-usuario/
-    Payload:
-    {
-        "email": "usuario@example.com",
-        "password": "senhaSegura123",
-        "tipo_usuario": "trade|usuario_oto|admin_oto",
-        "estabelecimento_id": 1,  # Obrigatório se tipo_usuario == "trade"
-        "nivel_permissao": "admin|editor|visualizador"  # Opcional para trade, padrão: visualizador
-    }
-    
-    Response (201):
-    {
-        "id": 123,
-        "email": "usuario@example.com",
-        "username": "usuario@example.com",
-        "tipo_usuario": "trade"
-    }
+    Gerencia a criação de usuários aplicando regras estritas de RBAC.
+    Exige estabelecimento_id para contas do tipo 'trade'.
     """
     permission_classes = [IsAuthenticated]
 
@@ -423,7 +400,7 @@ class CadastrarUsuarioView(APIView):
 
 class DashboardResumoView(APIView):
     """
-    Endpoint para fornecer dados agregados em tempo real para o Dashboard do React.
+    Agrega e compila as métricas em tempo real para o painel de indicadores (Dashboard).
     """
     permission_classes = [IsAuthenticated]
 
@@ -461,8 +438,8 @@ class DashboardResumoView(APIView):
         total_geral_uhs = total_uhs
         total_geral_leitos = total_leitos
 
-        # ODS é calculado baseado em ESTABELECIMENTOS (não inclui entidades independentes)
-        # pois o foco principal do inventário é o mapeamento de infraestrutura turística
+        # O cálculo de ODS é restrito a Estabelecimentos (empresas), 
+        # pois o foco da métrica é o mapeamento da infraestrutura comercial.
         estabelecimentos_count = total_estabelecimentos
         
         ods_payload = []
@@ -470,7 +447,7 @@ class DashboardResumoView(APIView):
         for index, indicator in enumerate(IndicadorODS.objects.all().order_by('eixo', 'ods', 'id')):
             positive_count = RegistroODS.objects.filter(
                 indicador=indicator,
-                registro__estabelecimento__isnull=False  # Filtra apenas Estabelecimentos
+                registro__estabelecimento__isnull=False
             ).count()
             percent = round((positive_count / estabelecimentos_count * 100)) if estabelecimentos_count > 0 else 0
             cor = palette[index % len(palette)]
