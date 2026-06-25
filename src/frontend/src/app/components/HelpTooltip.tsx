@@ -1,15 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Info } from 'lucide-react';
 
-/** Propriedades do balão de ajuda. */
 interface HelpTooltipProps {
-  /** Texto que vai aparecer dentro do balão. */
   text: string;
-  /** Largura máxima do balão (padrão: 240px). */
   maxWidth?: number;
-  /** Direção que o balão vai abrir em relação ao ícone. */
   side?: 'top' | 'bottom' | 'left' | 'right';
-  /** Tempo de espera para o balão aparecer ao passar o mouse (padrão: 200ms). */
   delay?: number;
 }
 
