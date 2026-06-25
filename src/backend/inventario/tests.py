@@ -1,12 +1,7 @@
 """
-Testes automatizados do app `inventario`.
-
-Rode com:   python manage.py test inventario
-Ou um caso: python manage.py test inventario.HerancaTests
-
-Cada classe agrupa um aspecto da modelagem que discutimos. O Django roda
-cada teste dentro de uma transação que é desfeita ao final, então os
-testes são isolados e não sujam o banco real (usam um banco temporário).
+Suíte de testes automatizados para o módulo de Inventário Turístico.
+Valida as regras de negócio de modelagem, herança multi-tabela, restrições 
+de documentos (CNPJ/CPF) e o isolamento do catálogo dinâmico (EAV).
 """
 
 from datetime import date
