@@ -4,13 +4,18 @@ import { Input } from "../components/ui/input";
 import { Button } from "../components/ui/button";
 import { Search, Check } from "lucide-react";
 
-type EstablishmentOption = {
+/**
+ * Representa um estabelecimento disponível para seleção na base de dados.
+ * Usado para popular a tabela de busca e vinculação de usuários Trade.
+ */
+export type EstablishmentOption = {
   id: number;
   endpoint: string;
   label: string;
   segmento: string;
 };
 
+/** Propriedades do modal de seleção de estabelecimentos. */
 type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -19,6 +24,11 @@ type Props = {
   selectedId?: number;
 };
 
+/**
+ * Modal para busca e seleção de um estabelecimento comercial/turístico.
+ * Inclui funcionalidades integradas de paginação local, busca textual (nome, CNPJ, CPF) 
+ * e filtro dinâmico por segmento de atuação.
+ */
 export function EstabelecimentoSelectorModal({
   open,
   onOpenChange,
