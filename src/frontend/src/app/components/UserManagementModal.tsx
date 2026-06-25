@@ -31,6 +31,11 @@ interface CreateUserFormData {
   permissionLevel?: string;
 }
 
+/**
+ * Modal de criação de novos usuários.
+ * Controla o formulário e aplica as regras de hierarquia do RBAC, garantindo que
+ * quem está logado só consiga criar perfis com nível de acesso igual ou inferior ao seu.
+ */
 export function UserManagementModal() {
   const { canAccessModule, canCreateUser, isSuperuser, isSecretariaAdmin, isSecretariaStaff } = useAuth();
   const [open, setOpen] = useState(false);
@@ -47,14 +52,13 @@ export function UserManagementModal() {
   });
   const [showPassword, setShowPassword] = useState(false);
 
-  // Check if user can access user management
   if (!canAccessModule('users')) {
     return null;
   }
 
-  // Determine which user types can be created
   const getAvailableUserTypes = (): { value: UserType; label: string }[] => {
     const types: { value: UserType; label: string }[] = [];
+
 
     if (isSuperuser() && canCreateUser('Secretaria_Admin')) {
       types.push({ value: 'Secretaria_Admin', label: 'Administrador OTO (Secretaria_Admin)' });
@@ -100,14 +104,13 @@ export function UserManagementModal() {
         groups: [],
       };
 
-      // Add groups based on user type
       if (formData.userType === 'Secretaria_Admin') {
         userData.groups = ['Secretaria_Admin'];
       } else if (formData.userType === 'Secretaria_Staff') {
         userData.groups = ['Secretaria_Staff'];
       }
 
-      // For Trade users, add establishment data
+
       if (formData.userType === 'Trade' && formData.establishmentId) {
         userData.establishment_id = formData.establishmentId;
         if (formData.permissionLevel) {
@@ -117,7 +120,6 @@ export function UserManagementModal() {
 
       await apiService.createUser(userData);
 
-      // Reset form
       setFormData({
         email: '',
         username: '',
@@ -166,7 +168,6 @@ export function UserManagementModal() {
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* User Type Selection */}
           <div className="space-y-2">
             <LabelWithHelp
               label="Tipo de Usuário"
@@ -187,7 +188,6 @@ export function UserManagementModal() {
             </Select>
           </div>
 
-          {/* Basic Information */}
           <div className="space-y-4">
             <h3 className="font-semibold text-sm text-gray-700">Informações Pessoais</h3>
 
@@ -271,7 +271,6 @@ export function UserManagementModal() {
             </div>
           </div>
 
-          {/* Trade-specific fields */}
           {selectedUserType === 'Trade' && (
             <div className="space-y-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
               <h3 className="font-semibold text-sm text-gray-700 flex items-center gap-2">
@@ -311,7 +310,6 @@ export function UserManagementModal() {
             </div>
           )}
 
-          {/* Action Buttons */}
           <div className="flex gap-3 justify-end pt-4">
             <Button
               type="button"
