@@ -1,7 +1,3 @@
-/**
- * Definição das rotas e controle de acesso da aplicação.
- * Organiza a navegação entre páginas públicas (login) e protegidas (dashboard/inventário).
- */
 import { createBrowserRouter, Navigate } from "react-router";
 import { Layout } from "./components/Layout";
 import { Dashboard } from "./pages/Dashboard";
@@ -15,6 +11,11 @@ import { UsersPage } from "./pages/UsersPage";
 import { LoginPage } from "./pages/LoginPage";
 import { ProtectedRoute, SmartRedirectRoute, TradeOnlyRoute } from "./components/ProtectedRoute";
 
+/**
+ * Mapeamento de rotas e controle de acesso (RBAC) do dashboard.
+ * Define a árvore de navegação e restringe o acesso às páginas protegidas com base
+ * nos perfis de usuário (Admin/Staff da Secretaria ou Trade Turístico).
+ */
 export const router = createBrowserRouter([
   {
     path: "/login",
