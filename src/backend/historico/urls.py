@@ -1,3 +1,7 @@
+"""
+Configuração de rotas (URLs) para os endpoints de histórico e relatórios.
+O DefaultRouter gera automaticamente os caminhos da API com base nas ViewSets.
+"""
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from . import views
