@@ -3,40 +3,34 @@ from .models import VinculoTrade
 
 class IsSecretariaOrReadOnly(permissions.BasePermission):
     """
-    Catálogos: Qualquer usuário logado pode LER (GET) para montar as telas.
-    Mas apenas Administradores ou grupo 'Secretaria' podem CRIAR/EDITAR/DELETAR.
+    Permite leitura a qualquer usuário autenticado. 
+    Escrita restrita a administradores ou membros do grupo 'Secretaria'.
     """
     def has_permission(self, request, view):
         if not request.user or not request.user.is_authenticated:
             return False
         
-        # Se for método seguro (GET, HEAD, OPTIONS), libera para todos do Trade/Secretaria
         if request.method in permissions.SAFE_METHODS:
             return True
             
-        # Se for escrita (POST, PUT, DELETE), exige ser staff, superuser ou grupo 'Secretaria'
         return (request.user.is_superuser or 
                 request.user.is_staff or 
                 request.user.groups.filter(name='Secretaria').exists())
 
 class IsTradeOwnerOrSecretaria(permissions.BasePermission):
     """
-    Entidades: Secretaria tem acesso total. 
-    Trade só acessa/edita se houver VinculoTrade.
+    Garante acesso irrestrito à Secretaria. 
+    Usuários do Trade têm acesso apenas aos objetos onde possuem VinculoTrade.
     """
     def has_permission(self, request, view):
-        # Bloqueia anônimos logo na porta de entrada
         return request.user and request.user.is_authenticated
 
     def has_object_permission(self, request, view, obj):
-        # 1. Admin ou Secretaria passa direto
         if (request.user.is_superuser or 
             request.user.is_staff or 
             request.user.groups.filter(name='Secretaria').exists()):
             return True
             
-        # 2. Usuário do Trade: Verifica se existe a ponte no banco
-        # obj.pk representa o ID do estabelecimento atual
         return VinculoTrade.objects.filter(
             usuario=request.user, 
             estabelecimento_id=obj.pk
@@ -44,6 +38,7 @@ class IsTradeOwnerOrSecretaria(permissions.BasePermission):
 
 
 def get_trade_vinculo(user, estabelecimento_id):
+    """Retorna o vínculo ativo entre o usuário e o estabelecimento especificado."""
     return VinculoTrade.objects.filter(
         usuario=user,
         estabelecimento_id=estabelecimento_id,
@@ -52,7 +47,7 @@ def get_trade_vinculo(user, estabelecimento_id):
 
 class IsSuperuserOrSecretariaAdmin(permissions.BasePermission):
     """
-    Gestão de usuários: apenas superuser Django ou membros do grupo Secretaria_Admin.
+    Restringe o acesso exclusivamente a superusuários ou membros do grupo 'Secretaria_Admin'.
     """
 
     def has_permission(self, request, view):
@@ -64,7 +59,7 @@ class IsSuperuserOrSecretariaAdmin(permissions.BasePermission):
 
 class IsSuperuserOrSecretariaAny(permissions.BasePermission):
     """
-    Trade: superuser, Secretaria_Admin ou Secretaria_Staff.
+    Restringe o acesso a superusuários e membros dos grupos 'Secretaria_Admin' ou 'Secretaria_Staff'.
     """
 
     def has_permission(self, request, view):
@@ -79,7 +74,7 @@ class IsSuperuserOrSecretariaAny(permissions.BasePermission):
 
 class IsTradeUserOnly(permissions.BasePermission):
     """
-    Permite apenas usuários Trade autenticados.
+    Restringe o acesso a usuários autenticados que NÃO sejam superusuários nem pertençam à Secretaria.
     """
 
     def has_permission(self, request, view):
