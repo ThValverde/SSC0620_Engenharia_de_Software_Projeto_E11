@@ -4,6 +4,10 @@ import { DndProvider } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 import { useMemo } from "react";
 
+/**
+ * Componente de layout base do dashboard.
+ * Mantém a barra lateral (Sidebar) fixa e define a área principal onde o conteúdo das páginas será renderizado.
+ */
 export function Layout() {
   const backend = useMemo(() => HTML5Backend, []);
 
