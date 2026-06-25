@@ -1,3 +1,8 @@
+/**
+ * Tela de gestão de usuários internos do sistema.
+ * Restrita a perfis de administrador (Secretaria_Admin) e superusuário (Django),
+ * permite realizar o CRUD de contas e atribuir papéis de acesso à plataforma OTO.
+ */
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { apiService } from "../services/api";
@@ -94,7 +99,7 @@ export function UsersPage() {
   const [deleteTarget, setDeleteTarget] = useState<ManagedUser | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const [form, setForm] = useState<UserFormState>(emptyForm); // form may contain showPassword field for password toggle in-place
+  const [form, setForm] = useState<UserFormState>(emptyForm); 
 
   const canManageUsers = canAccessModule("users");
 
