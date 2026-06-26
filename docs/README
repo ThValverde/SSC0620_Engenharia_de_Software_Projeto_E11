@@ -1,0 +1,11 @@
+# 📚 Documentação e Artefatos de Engenharia de Software
+
+Este diretório contém todos os artefatos gerados durante as fases de planejamento, validação e modelagem do Sistema de Gerenciamento de Dados OTO.
+
+## 📌 Índice de Artefatos
+
+* **Arquitetura do Sistema:** Visão geral e documentação da arquitetura client-server (`/architecture`).
+* **Casos de Uso:** Diagramas (.png e .drawio) descrevendo as interações dos atores com o sistema (`/usecases`).
+* **Modelagem Entidade-Relacionamento (MER):** Diagramas e documentação das tabelas e relacionamentos do banco de dados relacional (`/mer` e `MER.ipynb`).
+* **Diagramas de Sequência:** Fluxos detalhados, como o CRUD de inventário (`/sequence`).
+* **Instruções e Setup:** Documentação de apoio para configuração para equipe de desenvolvimento(`/instructions`).

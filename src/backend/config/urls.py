@@ -1,0 +1,44 @@
+"""
+URL configuration for config project.
+
+The `urlpatterns` list routes URLs to views. For more information please see:
+    https://docs.djangoproject.com/en/6.0/topics/http/urls/
+Examples:
+Function views
+    1. Add an import:  from my_app import views
+    2. Add a URL to urlpatterns:  path('', views.home, name='home')
+Class-based views
+    1. Add an import:  from other_app.views import Home
+    2. Add a URL to urlpatterns:  path('', Home.as_view(), name='home')
+Including another URLconf
+    1. Import the include() function: from django.urls import include, path
+    2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
+"""
+from django.contrib import admin
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
+from inventario.views import CadastrarUsuarioView, UserAdminViewSet
+from django.conf import settings
+from django.conf.urls.static import static
+
+users_router = DefaultRouter()
+users_router.register(r'users', UserAdminViewSet, basename='users')
+
+urlpatterns = [
+    path('admin/', admin.site.urls),
+
+    # conexão de rotas do app inventario
+    # usa prefixo api/inventario/ - todas as rotas desse arquivo
+    path('api/inventario/', include('inventario.urls')),
+    
+    # Endpoint customizado de cadastro de usuários com RBAC
+    path('api/auth/cadastrar-usuario/', CadastrarUsuarioView.as_view(), name='cadastrar-usuario'),
+
+    # CRUD administrativo de usuários
+    path('api/', include(users_router.urls)),
+    
+    # Rotas padrão de autenticação (dj-rest-auth)
+    path('api/auth/', include('dj_rest_auth.urls')),
+    
+    path('api/historico/', include('historico.urls')),
+] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
