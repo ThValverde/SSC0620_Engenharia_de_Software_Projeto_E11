@@ -12,10 +12,11 @@ Este repositório contém os artefatos de desenvolvimento do projeto de software
 * [Arquitetura do Sistema](#arquitetura-do-sistema)
 * [Controle de Acessos (RBAC)](#controle-de-acessos-rbac)
 * [Organização do Repositório](#organização-do-repositório)
-* [Como Executar o Projeto](#como-executar-o-projeto)
+* [Como Executar o Projeto](#<como-executar-o-projeto>)
 * [Próximos Passos (Roadmap)](#próximos-passos-roadmap)
 * [Equipe Acadêmica](#equipe-acadêmica)
 
+<a id="sobre-o-projeto"></a>
 ## 📖 Sobre o Projeto
 
 O projeto foi proposto na disciplina de Engenharia de Software (SSC0620) do Instituto de Ciências Matemáticas e de Computação (ICMC-USP). O desenvolvimento seguiu o modelo de desenvolvimento ágil, englobando:
@@ -35,7 +36,7 @@ O sistema possui "Smart Routing", encaminhando usuários dinamicamente com base 
 * **UI/UX Aprimorada:** Uso de `HelpTooltip` para dicas contextuais dinâmicas.
 
 ---
-
+<a id="arquitetura"></a>
 ## 🏗️ Arquitetura do Sistema
 
 O projeto segue uma arquitetura separada em camadas (Client-Server):
@@ -43,6 +44,7 @@ O projeto segue uma arquitetura separada em camadas (Client-Server):
 * **[Frontend (React / Vite)](./src/frontend/README.md):** Camada de apresentação (Páginas e Componentes), lógica de negócio no client-side (`AuthContext` para RBAC) e integração de API segura.
 * **[Backend (Django / DRF)](./src/backend/README.md):** Camada de API RESTful, disponibilizando endpoints protegidos, lógica de banco de dados, validação de tokens JWT (`SimpleJWT`) e permissões nativas de grupos do Django.
 
+<a id="rbac"></a>
 ## 🔐 Controle de Acessos (RBAC)
 
 O acesso ao sistema obedece a uma hierarquia de 4 níveis principais:
@@ -56,6 +58,7 @@ O acesso ao sistema obedece a uma hierarquia de 4 níveis principais:
 
 ---
 
+<a id="repositorio"></a>
 ## 🗃️ Organização do Repositório
 
 O projeto adota uma estrutura de monorepo. O detalhamento do código e as instruções de execução estão documentados dentro de cada respectivo serviço:
@@ -79,21 +82,86 @@ O detalhamento do código, configuração de ambiente e as instruções de execu
 
 ---
 
+<a id="como-executar-o-projeto"></a>
 ## 🚀 Como Executar o Projeto
 
-Para executar a aplicação localmente, é necessário rodar o Frontend e o Backend simultaneamente em terminais separados.
+Para testar a aplicação localmente, é necessário iniciar o Backend (Django) e o Frontend (React) simultaneamente em terminais separados.
 
-Consulte os guias específicos para instalação de dependências e configuração de variáveis de ambiente:
-1. [Instruções de execução do Backend](./src/backend/README.md)
-2. [Instruções de execução do Frontend](./src/frontend/README.md)
+### ⚙️ 1. Executando o Backend (API)
 
-*(Opcional) Credenciais de testes padrão do ambiente de desenvolvimento:*
-* **Admin OTO:** `admin@oto.com` / `senha`
-* **Staff OTO:** `staff@oto.com` / `senha`
-* **Trade User:** `trade@user.com` / `senha`
+Certifique-se de ter o **Python 3.10+** instalado.
+
+Navegue até a pasta do backend:
+```bash
+cd src/backend
+```
+
+Crie e ative um ambiente virtual:
+```bash
+# No Windows
+python -m venv venv
+venv\Scripts\activate
+
+# No Linux/Mac
+python3 -m venv venv
+source venv/bin/activate
+```
+
+Instale as dependências:
+```bash
+pip install -r requirements.txt
+```
+
+Aplique as migrações para criar o banco de dados local (SQLite):
+```bash
+python manage.py migrate
+```
+
+Inicie o servidor de desenvolvimento:
+```bash
+python manage.py runserver
+```
+📍 *A API estará rodando em: `http://127.0.0.1:8000/`*
 
 ---
 
+### 🖥️ 2. Executando o Frontend (Web)
+
+Certifique-se de ter o **Node.js** (versão 18+) instalado.
+
+Abra um novo terminal e navegue até a pasta do frontend:
+```bash
+cd src/frontend
+```
+
+Instale as dependências do projeto (via npm ou pnpm):
+```bash
+npm install
+```
+
+Configure o ambiente:
+Crie um arquivo `.env` na pasta `src/frontend` copiando o conteúdo do `.env.example` e certifique-se de que aponte para a API local:
+```env
+VITE_API_URL=[http://127.0.0.1:8000/api](http://127.0.0.1:8000/api)
+```
+
+Inicie o servidor web:
+```bash
+npm run dev
+```
+📍 *O sistema estará disponível no navegador, geralmente em: `http://localhost:5173/`*
+
+---
+
+### 🔑 Credenciais de Teste
+
+*(Opcional)* Usuários padrão do ambiente de desenvolvimento (se adicionados no Seed):
+
+* **Admin OTO:** `admin@oto.com` / `senha`
+* **Staff OTO:** `staff@oto.com` / `senha`
+* **Trade User:** `trade@user.com` / `senha`
+---
+<a id="próximos-passos-roadmap"></a>
 ## 🎯 Próximos Passos (Roadmap)
 
 ### Backend
@@ -115,7 +183,7 @@ Consulte os guias específicos para instalação de dependências e configuraç�
 * Testes unitários para os *Hooks* de verificação de permissões RBAC.
 
 ---
-
+<a id="equipe-academica"></a>
 ## 🎓 Equipe Acadêmica
 
 **Instituto de Ciências Matemáticas e de Computação (ICMC-USP)** **Disciplina:** SSC0620 - Engenharia de Software - Projeto Equipe 11  
