@@ -12,7 +12,7 @@ Este repositório contém os artefatos de desenvolvimento do projeto de software
 * [Arquitetura do Sistema](#arquitetura-do-sistema)
 * [Controle de Acessos (RBAC)](#controle-de-acessos-rbac)
 * [Organização do Repositório](#organização-do-repositório)
-* [Como Executar o Projeto](#<como-executar-o-projeto>)
+* [Como Executar o Projeto](#como-executar-o-projeto)
 * [Próximos Passos (Roadmap)](#próximos-passos-roadmap)
 * [Equipe Acadêmica](#equipe-acadêmica)
 
@@ -36,7 +36,7 @@ O sistema possui "Smart Routing", encaminhando usuários dinamicamente com base 
 * **UI/UX Aprimorada:** Uso de `HelpTooltip` para dicas contextuais dinâmicas.
 
 ---
-<a id="arquitetura"></a>
+<a id="arquitetura-do-sistema"></a>
 ## 🏗️ Arquitetura do Sistema
 
 O projeto segue uma arquitetura separada em camadas (Client-Server):
@@ -44,7 +44,7 @@ O projeto segue uma arquitetura separada em camadas (Client-Server):
 * **[Frontend (React / Vite)](./src/frontend/README.md):** Camada de apresentação (Páginas e Componentes), lógica de negócio no client-side (`AuthContext` para RBAC) e integração de API segura.
 * **[Backend (Django / DRF)](./src/backend/README.md):** Camada de API RESTful, disponibilizando endpoints protegidos, lógica de banco de dados, validação de tokens JWT (`SimpleJWT`) e permissões nativas de grupos do Django.
 
-<a id="rbac"></a>
+<a id="controle-de-acessos-rbac"></a>
 ## 🔐 Controle de Acessos (RBAC)
 
 O acesso ao sistema obedece a uma hierarquia de 4 níveis principais:
@@ -58,7 +58,7 @@ O acesso ao sistema obedece a uma hierarquia de 4 níveis principais:
 
 ---
 
-<a id="repositorio"></a>
+<a id="organização-do-repositório"></a>
 ## 🗃️ Organização do Repositório
 
 O projeto adota uma estrutura de monorepo. O detalhamento do código e as instruções de execução estão documentados dentro de cada respectivo serviço:
