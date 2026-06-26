@@ -49,10 +49,10 @@ O acesso ao sistema obedece a uma hierarquia de 4 níveis principais:
 
 | Nível | Perfil | Permissões de Criação | Acesso Principal |
 | :---: | :--- | :--- | :--- |
-| **4** | **Superuser** (Admin Django) | `Secretaria_Admin` | Acesso total a todos os módulos |
-| **3** | **Secretaria_Admin** (OTO Admin)| `Secretaria_Staff`, `Trade` | Gestão de usuários, Dashboards, Importação |
-| **2** | **Secretaria_Staff** (OTO Staff)| `Trade` | Criação de usuários Trade, Histórico |
-| **1** | **Trade User** | *Nenhuma* | Acesso restrito ao Portal Trade |
+| **4** | **Superuser** (Admin Django) | Super User Django | Acesso total a todos os módulos |
+| **3** | **Secretaria_Admin** (OTO Admin)| `Secretaria_Admin` | Gestão de usuários (Secretaria e Trade), Dashboard, Inventário e Histórico de Anexos |
+| **2** | **Secretaria_Staff** (OTO Staff)| `Secretaria_Staff` | Dashboard, Inventário e Histórico de Anexos |
+| **1** | **Trade User** | `Trade` | Acesso restrito ao Portal Trade no molde 1-1 |
 
 ---
 

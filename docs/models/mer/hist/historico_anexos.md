@@ -1,3 +1,4 @@
+```
 erDiagram
   Pasta ||--o{ Relatorio : "contém (opcional)"
   Relatorio ||--o{ ArquivoAnexo : "armazena arquivos"
