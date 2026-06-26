@@ -2,7 +2,7 @@
 sequenceDiagram
     autonumber
     actor U as Usuário (Admin, Analista OTO ou Trade)
-    participant F as Frontend (Flutter Web)
+    participant F as Frontend (React JS Web)
     participant B as API Backend (Django REST)
     participant DB as Banco de Dados (PostgreSQL)
 
