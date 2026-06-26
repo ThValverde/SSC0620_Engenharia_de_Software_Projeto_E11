@@ -123,6 +123,8 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = 'static/'
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
 
 # CONFIGURAÇÃO DE SEGURANÇA E CORS
 
@@ -136,6 +138,7 @@ CORS_ALLOWED_ORIGINS = [
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'rest_framework.authentication.SessionAuthentication',
     ),
 
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
@@ -147,8 +150,18 @@ REST_FRAMEWORK = {
     ],
 }
 
-REST_USE_JWT = True
+REST_AUTH = {
+    'USE_JWT': True,
+    'JWT_AUTH_COOKIE': 'jwt-auth',
+    'JWT_AUTH_REFRESH_COOKIE': 'jwt-refresh',
+    'JWT_AUTH_HTTPONLY': False,
+    'USER_DETAILS_SERIALIZER': 'inventario.serializers.CustomUserDetailsSerializer',
+    'SESSION_LOGIN': False,
+}
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
-JWT_AUTH_COOKIE = 'jwt-auth'
-JWT_AUTH_REFRESH_COOKIE = 'jwt-refresh'
-JWT_AUTH_HTTPONLY = False
+
+AUTHENTICATION_BACKENDS = [
+    'config.backends.EmailOrUsernameModelBackend', 
+    'django.contrib.auth.backends.ModelBackend',
+]

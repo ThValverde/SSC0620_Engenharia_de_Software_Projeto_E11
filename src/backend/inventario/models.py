@@ -1,52 +1,11 @@
 
 """
 Inventário Turístico — Observatório de Turismo de Olímpia (OTO)
-App Django: `inventario`
-
-Tradução do MER (SSC0620) para o ORM do Django, com os refinamentos
-discutidos sobre o modelo original:
-
- 1. SUPERTIPO `RegistroInventario`
-    Raiz comum de TODO item do inventário — tanto os Estabelecimentos
-    (empresas) quanto as entidades independentes (Guia de Turismo, RHC,
-    Grupos Folclóricos, Táxi/Aplicativo). É uma generalização um nível
-    ACIMA da que o MER já tinha, e resolve sem FKs polimórficas:
-      - Contato, RedeSocial e Endereco compartilhados por todos;
-      - Cadastur também para Guia de Turismo (pessoa física);
-      - ODS para Estabelecimentos, Guias e RHC com UMA tabela-ponte;
-      - Integrações futuras (ISSQN, Pesquisas Mensais) apontam para
-        uma única chave estável.
-    No banco vira herança multi-tabela (table-per-subclass), o mesmo
-    padrão de Generalização/Especialização do MER.
-
- 2. CHAVE SUBSTITUTA (id BIGINT) em tudo. CNPJ é UNIQUE + NULL —
-    atrativos públicos não têm CNPJ, e PK não pode ser nula.
-
- 3. REGISTRO CADASTUR DERIVADO (Regra 1.5): propriedade calculada pela
-    existência da linha em `Cadastur`; nenhuma coluna booleana
-    redundante. A *exigência legal* (Obrigatório/Opcional/N.A.) é
-    função do TIPO de entidade — vive como constante de classe
-    `CADASTUR_EXIGENCIA` nas filhas, não como coluna por registro.
-
- 4. CATÁLOGO EAV COM ESCOPO: UNIQUE(escopo, nome, categoria) — evita a
-    colisão entre, p.ex., "Sinalização Visual PCD" de Meio de
-    Hospedagem x Atrativos x Alimentação (seu próprio doc nota que os
-    conjuntos diferem).
-
- 5. `ServicoApoio` consolida as 11 categorias de apoio SEM atributos
-    próprios (cabeleireiro, clínicas, farmácia, posto, mecânica...).
-    Banco, TemploReligioso e ServicoSaude permanecem especializações
-    de verdade porque têm campos próprios.
-
- 6. DIVERGÊNCIA CONSCIENTE do doc de regras (seção 4.2): UH total,
-    UH PCD e Leitos ficam como COLUNAS de MeioHospedagem, não no EAV.
-    Motivo: não são atributos esparsos (todo MH tem) e são a base do
-    cruzamento com Taxa de Ocupação / Pesquisas Mensais — coluna direta
-    simplifica radicalmente o SQL do boletim. O EAV fica para o que é
-    esparso e variável (acessibilidade, comodidades etc.).
+Mapeamento do modelo de dados para o ORM Django.
 """
 
 from datetime import date
+import re
 
 from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
@@ -69,15 +28,12 @@ validar_cpf = RegexValidator(
     regex=r"^\d{11}$",
     message="CPF deve conter exatamente 11 dígitos numéricos, sem máscara.",
 )
-# Para validar dígitos verificadores (algoritmo mod 11) no formulário ou
-# serializer, use a lib `validate-docbr` (CPF().validate(v), CNPJ().validate(v)).
 
 validar_cep = RegexValidator(
     regex=r"^\d{8}$",
     message="CEP deve conter 8 dígitos numéricos, sem hífen.",
 )
 
-# Regra 12.4 — padrão Mercosul (ABC1D23) ou padrão anterior (ABC-1234)
 validar_placa = RegexValidator(
     regex=r"^([A-Z]{3}-?\d{4}|[A-Z]{3}\d[A-Z]\d{2})$",
     message="Placa deve seguir o padrão Mercosul (ABC1D23) ou o anterior (ABC-1234).",
@@ -85,7 +41,7 @@ validar_placa = RegexValidator(
 
 
 def validar_ano_habilitacao(valor):
-    """Regra 12.4 — INTEGER entre 1950 e o ano corrente."""
+    """Valida se o ano está entre 1950 e o ano atual."""
     ano_atual = date.today().year
     if not 1950 <= valor <= ano_atual:
         raise ValidationError(
@@ -94,7 +50,7 @@ def validar_ano_habilitacao(valor):
 
 
 class ExigenciaCadastur(models.TextChoices):
-    """Exigência legal do Cadastur por TIPO de entidade (Regra 1.5 / Seção 2)."""
+    """Opções de exigência legal do Cadastur por segmento."""
 
     OBRIGATORIO = "obrigatorio", "Obrigatório"
     OPCIONAL = "opcional", "Opcional"
@@ -102,11 +58,7 @@ class ExigenciaCadastur(models.TextChoices):
 
 
 class EscopoCatalogo(models.TextChoices):
-    """Escopo dos catálogos Caracteristica / CaracteristicaValor.
-
-    Somente os segmentos abaixo possuem catálogo EAV (Seções 3, 4, 6, 7,
-    8, 10 e 11 do documento de regras).
-    """
+    """Define os segmentos que utilizam o catálogo EAV."""
 
     ATRATIVOS = "atrativos", "Atrativos, Lazer e Entretenimento"
     MEIO_HOSPEDAGEM = "meio_hospedagem", "Meios de Hospedagem"
@@ -123,16 +75,9 @@ class EscopoCatalogo(models.TextChoices):
 
 
 class RegistroInventario(models.Model):
-    """Raiz de generalização de todo item do inventário turístico.
-
-    Tudo que possui Contato, Endereco, RedeSocial, Cadastur ou ODS
-    referencia ESTA tabela. As filhas diretas são `Estabelecimento`
-    (empresas) e as entidades independentes (GuiaTurismo, RHC,
-    GrupoFolclorico, TaxiAplicativo).
-    """
+    """Modelo base para centralização de todos os itens do inventário."""
 
     class Tipo(models.TextChoices):
-        # filhas de Estabelecimento
         MEIO_HOSPEDAGEM = "meio_hospedagem", "Meio de Hospedagem"
         MEIO_ALIMENTACAO_BEBIDA = "meio_alimentacao_bebida", "Alimentação e Bebidas"
         ATRATIVO = "atrativo", "Atrativo, Lazer e Entretenimento"
@@ -145,7 +90,6 @@ class RegistroInventario(models.Model):
         TEMPLO_RELIGIOSO = "templo_religioso", "Templo Religioso"
         SERVICO_SAUDE = "servico_saude", "Serviço de Saúde"
         SERVICO_APOIO = "servico_apoio", "Serviço de Apoio ao Turista"
-        # entidades independentes (não são Estabelecimento)
         GUIA_TURISMO = "guia_turismo", "Guia de Turismo"
         RHC = "rhc", "RHC — Registro Habitacional Complementar"
         GRUPO_FOLCLORICO = "grupo_folclorico", "Grupo Folclórico/Parafolclórico"
@@ -175,16 +119,14 @@ class RegistroInventario(models.Model):
         return f"[{self.get_tipo_display()}] #{self.pk}"
 
     def save(self, *args, **kwargs):
-        # Cada filha concreta declara TIPO_REGISTRO; preenchido na criação.
         tipo_da_classe = getattr(self, "TIPO_REGISTRO", None)
         if tipo_da_classe and not self.tipo:
             self.tipo = tipo_da_classe
         super().save(*args, **kwargs)
 
-    # ----- Regra 1.5 — Registro Cadastur DERIVADO -----
     @property
     def possui_cadastur(self) -> bool:
-        """"Sim" se, e somente se, existir a linha 1:1 em Cadastur."""
+        """Retorna se o registro possui vínculo com o Cadastur."""
         return hasattr(self, "cadastur")
 
     @property
@@ -193,14 +135,14 @@ class RegistroInventario(models.Model):
 
     @property
     def coordenadas(self):
-        """(latitude, longitude) do Endereco vinculado, se houver."""
+        """Retorna a latitude e longitude do endereço vinculado."""
         endereco = getattr(self, "endereco", None)
         if endereco and endereco.latitude is not None and endereco.longitude is not None:
             return (endereco.latitude, endereco.longitude)
         return None
 
     def especializacao(self):
-        """Desce da raiz até a instância mais específica (folha)."""
+        """Retorna a instância da classe filha específica."""
         obj = self
         for acessor in CAMINHO_FOLHA.get(self.tipo, ()):
             try:
@@ -216,8 +158,7 @@ class RegistroInventario(models.Model):
 
 
 class Endereco(models.Model):
-    """1:1 com qualquer registro do inventário. Coordenadas vivem aqui
-    (são propriedade do local físico), expostas na raiz via property."""
+    """Armazena os dados de localização física do registro."""
 
     registro = models.OneToOneField(
         RegistroInventario, on_delete=models.CASCADE, related_name="endereco"
@@ -246,9 +187,7 @@ class Endereco(models.Model):
 
 
 class Contato(models.Model):
-    """1:N — um registro pode ter vários contatos (recepção, proprietário...).
-    O campo `cargo` resolve o "Cargo$(precisa?)" do MER: precisa, e cobre
-    inclusive o "Proprietário [1..*]" de Meio de Hospedagem."""
+    """Armazena as informações de contato do registro."""
 
     registro = models.ForeignKey(
         RegistroInventario, on_delete=models.CASCADE, related_name="contatos"
@@ -268,11 +207,12 @@ class Contato(models.Model):
     def __str__(self):
         partes = [p for p in (self.telefone, self.email, self.cargo) if p]
         return " / ".join(partes) or f"Contato #{self.pk}"
-
-
 class RedeSocial(models.Model):
+    """Armazena os perfis de redes sociais vinculados ao registro."""
     registro = models.ForeignKey(
-        RegistroInventario, on_delete=models.CASCADE, related_name="redes_sociais"
+        RegistroInventario, 
+        on_delete=models.CASCADE, 
+        related_name="redes_sociais"
     )
     nome = models.CharField(max_length=60, help_text="Plataforma. Ex.: Instagram.")
     perfil = models.CharField(max_length=255, help_text="@usuario ou URL do perfil.")
@@ -291,11 +231,8 @@ class RedeSocial(models.Model):
     def __str__(self):
         return f"{self.nome}: {self.perfil}"
 
-
 class Cadastur(models.Model):
-    """Dados do registro Cadastur. Regra 1.5: a EXISTÊNCIA desta linha é a
-    fonte da verdade de "Registro Cadastur = Sim" — sem boolean redundante.
-    A exigência legal por tipo está em CADASTUR_EXIGENCIA de cada filha."""
+    """Armazena os dados de inscrição do Cadastur."""
 
     registro = models.OneToOneField(
         RegistroInventario, on_delete=models.CASCADE, related_name="cadastur"
@@ -316,8 +253,7 @@ class Cadastur(models.Model):
 
 
 class Pagamento(models.Model):
-    """Catálogo estático (Regra 1.3) — N:M com Estabelecimento.
-    Popular via data migration com os 5 valores permitidos."""
+    """Catálogo das formas de pagamento aceitas."""
 
     class TipoPagamento(models.TextChoices):
         DINHEIRO = "dinheiro", "Dinheiro"
@@ -345,13 +281,7 @@ class Pagamento(models.Model):
 
 
 class Estabelecimento(RegistroInventario):
-    """Atributos comuns às empresas do inventário (Seção 2 das regras).
-
-    Herança multi-tabela: a tabela `estabelecimento` tem PK = FK para
-    `registro_inventario` (coluna registroinventario_ptr_id), exatamente
-    o padrão table-per-subclass do MER. Não instancie diretamente —
-    sempre crie pelas filhas.
-    """
+    """Modelo base para as empresas e estabelecimentos comerciais do trade."""
 
     nome_fantasia = models.CharField(max_length=255)
     razao_social = models.CharField(max_length=255, blank=True)
@@ -408,8 +338,7 @@ class Estabelecimento(RegistroInventario):
 
 
 class ProdutoServico(models.Model):
-    """Produtos/serviços comercializados (usado por Alimentação e
-    Artesanato). FK ancorada no PAI para evitar FK polimórfica."""
+    """Cadastro de produtos ou serviços oferecidos pelo estabelecimento."""
 
     estabelecimento = models.ForeignKey(
         Estabelecimento, on_delete=models.CASCADE, related_name="produtos_servicos"
@@ -433,6 +362,7 @@ class ProdutoServico(models.Model):
 
 
 class Secao(models.Model):
+    """Divisões lógicas do catálogo EAV para organização de interface."""
     escopo = models.CharField(max_length=20, choices=EscopoCatalogo.choices)
     nome = models.CharField(max_length=120)
     com_pergunta = models.BooleanField(default=False) 
@@ -445,14 +375,7 @@ class Secao(models.Model):
 
 
 class Caracteristica(models.Model):
-    """Catálogo de características CATEGÓRICAS (Regra 1.1), com escopo.
-
-    nome = agrupador (ex.: "Sanitário PCD"); categoria = opção
-    (ex.: "Barra de apoio"). Regra do "Não": toda Caracteristica de
-    escopo+nome possui a linha categoria='Não', apontada quando o
-    estabelecimento não tem nenhuma opção do grupo.
-    `customizada` marca entradas criadas via [Texto Dinâmico Customizado].
-    """
+    """Catálogo de atributos categóricos do sistema EAV."""
 
     escopo = models.CharField(max_length=20, choices=EscopoCatalogo.choices)
     nome = models.CharField(max_length=120, help_text="Agrupador/escopo do grupo.")
@@ -480,12 +403,7 @@ class Caracteristica(models.Model):
 
 
 class CaracteristicaValor(models.Model):
-    """Catálogo de métricas QUANTITATIVAS (Regra 1.2), com escopo.
-
-    O VALOR não fica aqui — fica na ponte `Medicao`, pois é por
-    estabelecimento. Aqui mora apenas a definição (escopo, nome,
-    categoria), p.ex. ("meio_hospedagem", "Capacidade UH", "Leitos").
-    """
+    """Catálogo de atributos quantitativos (métricas) do sistema EAV."""
 
     escopo = models.CharField(max_length=20, choices=EscopoCatalogo.choices)
     nome = models.CharField(max_length=120)
@@ -509,7 +427,6 @@ class CaracteristicaValor(models.Model):
         return f"({self.get_escopo_display()}) {self.nome}: {self.categoria}"
 
 
-# Compatibilidade escopo do catálogo <-> tipo de registro (validação das pontes)
 ESCOPO_TIPO_COMPATIVEL = {
     EscopoCatalogo.ATRATIVOS: RegistroInventario.Tipo.ATRATIVO,
     EscopoCatalogo.MEIO_HOSPEDAGEM: RegistroInventario.Tipo.MEIO_HOSPEDAGEM,
@@ -522,7 +439,7 @@ ESCOPO_TIPO_COMPATIVEL = {
 
 
 class EstabelecimentoCaracteristica(models.Model):
-    """Ponte N:M Estabelecimento <-> Caracteristica (assinala a opção)."""
+    """Relacionamento entre estabelecimento e suas características categóricas."""
 
     estabelecimento = models.ForeignKey(Estabelecimento, on_delete=models.CASCADE)
     caracteristica = models.ForeignKey(Caracteristica, on_delete=models.PROTECT)
@@ -553,11 +470,7 @@ class EstabelecimentoCaracteristica(models.Model):
 
 
 class Medicao(models.Model):
-    """Ponte N:M com atributo: Estabelecimento <-> CaracteristicaValor + valor.
-
-    Implementa a leitura do MER "Caracteristica_Valor" mantendo o valor
-    NUMÉRICO (DECIMAL) para os cálculos dos boletins (Regra 1.2).
-    """
+    """Registra os valores numéricos das métricas por estabelecimento."""
 
     estabelecimento = models.ForeignKey(Estabelecimento, on_delete=models.CASCADE)
     metrica = models.ForeignKey(CaracteristicaValor, on_delete=models.PROTECT)
@@ -593,13 +506,7 @@ class Medicao(models.Model):
 
 
 class IndicadorODS(models.Model):
-    """Catálogo de indicadores ODS (Regra 1.4 / Seção 5.1).
-
-    Uma única tabela de catálogo + uma ponte substituem ODS_quali e
-    ODS_quant do MER: `natureza` distingue os dois casos, e a ponte
-    `RegistroODS` carrega `valor` apenas quando quantitativo. Eixo e
-    ODS ficam normalizados num lugar só.
-    """
+    """Catálogo dos Objetivos de Desenvolvimento Sustentável (ODS)."""
 
     class Natureza(models.TextChoices):
         QUALITATIVO = "quali", "Qualitativo (booleano — a linha existir = Sim)"
@@ -625,12 +532,7 @@ class IndicadorODS(models.Model):
 
 
 class RegistroODS(models.Model):
-    """Ponte registro do inventário <-> indicador ODS.
-
-    Qualitativo: a existência da linha significa "Sim" (mesmo padrão do
-    Cadastur derivado). Quantitativo: `valor` obrigatório (ex.: % de
-    mulheres em liderança, 0–100).
-    """
+    """Vincula os indicadores ODS aos registros do inventário."""
 
     registro = models.ForeignKey(
         RegistroInventario, on_delete=models.CASCADE, related_name="indicadores_ods"
@@ -673,9 +575,7 @@ class RegistroODS(models.Model):
 
 
 class MeioHospedagem(Estabelecimento):
-    """Seção 4. Cadastur obrigatório. `classificacao` herdada = tipo de
-    hospedagem. Check-in/checkout têm semântica própria e NÃO usam
-    horario_atendimento (Regra 2.3)."""
+    """Dados específicos para o segmento de hospedagem."""
 
     TIPO_REGISTRO = RegistroInventario.Tipo.MEIO_HOSPEDAGEM
     CADASTUR_EXIGENCIA = ExigenciaCadastur.OBRIGATORIO
@@ -687,7 +587,6 @@ class MeioHospedagem(Estabelecimento):
     email_pesquisa = models.EmailField(blank=True)
     data_abertura = models.DateField(null=True, blank=True)
     inventario = models.TextField(blank=True)
-    # Divergência consciente do doc 4.2 — ver docstring do módulo (item 6):
     uh_total = models.PositiveIntegerField(
         null=True, blank=True, verbose_name="UHs (total)"
     )
@@ -709,7 +608,7 @@ class MeioHospedagem(Estabelecimento):
 
 
 class MeioAlimentacaoBebida(Estabelecimento):
-    """Seção 6. Cadastur opcional."""
+    """Dados específicos para o segmento de alimentação e bebidas."""
 
     TIPO_REGISTRO = RegistroInventario.Tipo.MEIO_ALIMENTACAO_BEBIDA
     CADASTUR_EXIGENCIA = ExigenciaCadastur.OPCIONAL
@@ -729,8 +628,7 @@ class MeioAlimentacaoBebida(Estabelecimento):
 
 
 class AtrativoLazerEntretenimento(Estabelecimento):
-    """Seção 3. Cadastur opcional. CNPJ herdado já é NULLABLE — atrativos
-    públicos não têm (motivo da chave substituta)."""
+    """Dados específicos para atrativos turísticos, lazer e entretenimento."""
 
     TIPO_REGISTRO = RegistroInventario.Tipo.ATRATIVO
     CADASTUR_EXIGENCIA = ExigenciaCadastur.OPCIONAL
@@ -771,7 +669,7 @@ class AtrativoLazerEntretenimento(Estabelecimento):
 
 
 class EspacoEvento(Estabelecimento):
-    """Seção 8. Cadastur opcional."""
+    """Dados específicos para locais de eventos."""
 
     TIPO_REGISTRO = RegistroInventario.Tipo.ESPACO_EVENTO
     CADASTUR_EXIGENCIA = ExigenciaCadastur.OPCIONAL
@@ -787,7 +685,7 @@ class EspacoEvento(Estabelecimento):
 
 
 class AgenciaOperadoraTurismo(Estabelecimento):
-    """Seção 7. Cadastur obrigatório."""
+    """Dados específicos para agências e operadoras de turismo."""
 
     TIPO_REGISTRO = RegistroInventario.Tipo.AGENCIA_TURISMO
     CADASTUR_EXIGENCIA = ExigenciaCadastur.OBRIGATORIO
@@ -804,7 +702,7 @@ class AgenciaOperadoraTurismo(Estabelecimento):
 
 
 class OrganizadorServicoEvento(Estabelecimento):
-    """Seção 10. Cadastur opcional."""
+    """Dados específicos para organizadores e prestadores de serviços de eventos."""
 
     TIPO_REGISTRO = RegistroInventario.Tipo.ORGANIZADOR_EVENTO
     CADASTUR_EXIGENCIA = ExigenciaCadastur.OPCIONAL
@@ -826,7 +724,7 @@ class OrganizadorServicoEvento(Estabelecimento):
 
 
 class LocadoraVeiculoTransporte(Estabelecimento):
-    """Seção 9. Cadastur obrigatório."""
+    """Dados específicos para locadoras e transportadoras turísticas."""
 
     TIPO_REGISTRO = RegistroInventario.Tipo.LOCADORA_TRANSPORTE
     CADASTUR_EXIGENCIA = ExigenciaCadastur.OBRIGATORIO
@@ -848,7 +746,7 @@ class LocadoraVeiculoTransporte(Estabelecimento):
 
 
 class Artesanato(Estabelecimento):
-    """Seção 11. Cadastur opcional. ProdutoServico via FK no pai."""
+    """Dados específicos para o segmento de artesanato e comércio diferenciado."""
 
     TIPO_REGISTRO = RegistroInventario.Tipo.ARTESANATO
     CADASTUR_EXIGENCIA = ExigenciaCadastur.OPCIONAL
@@ -862,11 +760,11 @@ class Artesanato(Estabelecimento):
         verbose_name_plural = "artesanatos e comércios diferenciados"
 
 
-# ----- Serviços de Apoio (Seção 13) -----
+# ----- Serviços de Apoio -----
 
 
 class Banco(Estabelecimento):
-    """13.1 — tem atributos próprios, então mantém tabela própria."""
+    """Dados específicos para agências bancárias."""
 
     TIPO_REGISTRO = RegistroInventario.Tipo.BANCO
     CADASTUR_EXIGENCIA = ExigenciaCadastur.NAO_SE_APLICA
@@ -883,7 +781,7 @@ class Banco(Estabelecimento):
 
 
 class TemploReligioso(Estabelecimento):
-    """13.10 — horários de missa/culto usam horario_atendimento herdado."""
+    """Dados específicos para templos e espaços religiosos."""
 
     TIPO_REGISTRO = RegistroInventario.Tipo.TEMPLO_RELIGIOSO
     CADASTUR_EXIGENCIA = ExigenciaCadastur.NAO_SE_APLICA
@@ -899,7 +797,7 @@ class TemploReligioso(Estabelecimento):
 
 
 class ServicoSaude(Estabelecimento):
-    """13.12 — horário de emergência tem semântica própria (Regra 2.3)."""
+    """Dados específicos para estabelecimentos de saúde."""
 
     TIPO_REGISTRO = RegistroInventario.Tipo.SERVICO_SAUDE
     CADASTUR_EXIGENCIA = ExigenciaCadastur.NAO_SE_APLICA
@@ -917,10 +815,7 @@ class ServicoSaude(Estabelecimento):
 
 
 class ServicoApoio(Estabelecimento):
-    """Consolida as 11 categorias de apoio SEM atributos próprios
-    (refinamento sobre o MER: evita 11 tabelas vazias — o segmento vira
-    o enum `tipo_servico`). `observacao` cobre o campo livre de
-    Serviço de Segurança (13.13)."""
+    """Dados específicos para serviços gerais de apoio ao turista."""
 
     TIPO_REGISTRO = RegistroInventario.Tipo.SERVICO_APOIO
     CADASTUR_EXIGENCIA = ExigenciaCadastur.NAO_SE_APLICA
@@ -956,8 +851,7 @@ class ServicoApoio(Estabelecimento):
 
 
 class GuiaTurismo(RegistroInventario):
-    """12.1 — pessoa física. Cadastur OBRIGATÓRIO via supertipo (o motivo
-    central de a raiz existir acima de Estabelecimento)."""
+    """Cadastro de guias de turismo profissionais."""
 
     TIPO_REGISTRO = RegistroInventario.Tipo.GUIA_TURISMO
     CADASTUR_EXIGENCIA = ExigenciaCadastur.OBRIGATORIO
@@ -979,7 +873,7 @@ class GuiaTurismo(RegistroInventario):
 
 
 class RHC(RegistroInventario):
-    """12.2 — Registro Habitacional Complementar (imóveis de temporada)."""
+    """Cadastro do Registro Habitacional Complementar para imóveis de temporada."""
 
     TIPO_REGISTRO = RegistroInventario.Tipo.RHC
     CADASTUR_EXIGENCIA = ExigenciaCadastur.NAO_SE_APLICA
@@ -1018,8 +912,7 @@ class RHC(RegistroInventario):
 
 
 class GrupoFolclorico(RegistroInventario):
-    """12.3 — grupos culturais. O par (tipo_documento, documento) resolve
-    o 'CNPJ_OU_CPF' do MER sem misturar dois domínios numa coluna ambígua."""
+    """Cadastro de grupos folclóricos e parafolclóricos."""
 
     TIPO_REGISTRO = RegistroInventario.Tipo.GRUPO_FOLCLORICO
     CADASTUR_EXIGENCIA = ExigenciaCadastur.NAO_SE_APLICA
@@ -1030,7 +923,7 @@ class GrupoFolclorico(RegistroInventario):
 
     nome = models.CharField(max_length=255)
     razao_social = models.CharField(max_length=255, blank=True)
-    tipo_documento = models.CharField(max_length=4, choices=TipoDocumento.choices)
+    tipo_documento = models.CharField(max_length=4, choices=TipoDocumento.choices, blank=True)
     documento = models.CharField(max_length=14)
     classificacao_grupo = models.CharField(max_length=120, blank=True)
     quantidade = models.PositiveIntegerField(null=True, blank=True)
@@ -1049,24 +942,52 @@ class GrupoFolclorico(RegistroInventario):
         ]
 
     def clean(self):
-        tamanho = {"cpf": 11, "cnpj": 14}.get(self.tipo_documento)
-        if tamanho and (not self.documento.isdigit() or len(self.documento) != tamanho):
+        """Valida e formata o campo de documento identificador."""
+        documento = re.sub(r"\D", "", self.documento or "")
+        tipo_documento = (self.tipo_documento or "").strip().lower()
+
+        if len(documento) not in (11, 14):
+            raise ValidationError("CPF/CNPJ deve conter 11 ou 14 dígitos numéricos.")
+
+        if not tipo_documento:
+            self.tipo_documento = "cpf" if len(documento) == 11 else "cnpj"
+        elif tipo_documento not in ("cpf", "cnpj"):
+            raise ValidationError("Use CPF ou CNPJ.")
+        elif (tipo_documento == "cpf" and len(documento) != 11) or (tipo_documento == "cnpj" and len(documento) != 14):
+            esperado = 11 if tipo_documento == "cpf" else 14
             raise ValidationError(
-                f"{self.get_tipo_documento_display()} deve ter {tamanho} dígitos numéricos."
+                f"{self.get_tipo_documento_display()} deve ter {esperado} dígitos numéricos."
             )
+
+        self.documento = documento
 
     def __str__(self):
         return self.nome
 
 
 class TaxiAplicativo(RegistroInventario):
-    """12.4 — táxi, mototáxi e aplicativo (veículo/motorista)."""
+    """Cadastro de motoristas de táxi, mototáxi e aplicativos."""
 
     TIPO_REGISTRO = RegistroInventario.Tipo.TAXI_APLICATIVO
     CADASTUR_EXIGENCIA = ExigenciaCadastur.NAO_SE_APLICA
 
+    class TipoDocumento(models.TextChoices):
+        CPF = "cpf", "CPF"
+        CNPJ = "cnpj", "CNPJ"
+
     nome = models.CharField(max_length=255, verbose_name="Nome do taxista")
     empresa = models.CharField(max_length=255, blank=True)
+    tipo_documento = models.CharField(
+        max_length=4,
+        choices=TipoDocumento.choices,
+        blank=True,
+        help_text="Tipo de documento: CPF (pessoa física) ou CNPJ (empresa/associação)",
+    )
+    documento = models.CharField(
+        max_length=14,
+        blank=True,
+        help_text="CPF (11 dígitos) ou CNPJ (14 dígitos), sem máscara",
+    )
     qtde_pontos = models.PositiveIntegerField(null=True, blank=True)
     qtde_veiculos = models.PositiveIntegerField(null=True, blank=True)
     credencial_alvara = models.CharField(max_length=60, blank=True)
@@ -1091,8 +1012,7 @@ class TaxiAplicativo(RegistroInventario):
 
 
 class EventoProgramado(models.Model):
-    """Seção 2.2 — não é registro do inventário (sem Contato/Endereco).
-    FK OPCIONAL para o Espaço de Evento onde ocorre."""
+    """Cadastro cronológico de eventos programados no município."""
 
     nome = models.CharField(max_length=255)
     quantidade = models.PositiveIntegerField(
@@ -1118,10 +1038,7 @@ class EventoProgramado(models.Model):
 
 
 class VinculoTrade(models.Model):
-    """Requisito 2 (níveis de usuário): liga o usuário do portal do Trade
-    aos estabelecimentos que ele pode editar. Administrador/Visualizador
-    são Groups do Django (ver README). Um proprietário pode ter mais de
-    um negócio — por isso N:M via esta tabela, e não FK no usuário."""
+    """Controle de permissões de usuários sobre os estabelecimentos do trade."""
 
     usuario = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -1130,6 +1047,16 @@ class VinculoTrade(models.Model):
     )
     estabelecimento = models.ForeignKey(
         Estabelecimento, on_delete=models.CASCADE, related_name="responsaveis"
+    )
+    nivel_permissao = models.CharField(
+        max_length=50,
+        default='visualizador',
+        choices=[
+            ('admin', 'Administrador'),
+            ('editor', 'Editor'),
+            ('visualizador', 'Visualizador'),
+        ],
+        help_text='Nível de permissão do usuário neste estabelecimento'
     )
 
     class Meta:

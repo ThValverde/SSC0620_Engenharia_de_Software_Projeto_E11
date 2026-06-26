@@ -1,11 +1,13 @@
 """
-Inventário Turístico — OTO | Django Admin (CRUD do perfil Administrador)
-
-Os inlines de Endereco/Contato/RedeSocial/Cadastur/ODS apontam para
-RegistroInventario (a raiz da herança multi-tabela); o Django aceita
-inlines cuja FK referencia um ancestral do model registrado.
+Configurações do Django Admin para o módulo de Inventário Turístico.
+Gerencia o CRUD de estabelecimentos e entidades através do painel do Administrador.
+Utiliza a classe base RegistroInventario para o reaproveitamento de inlines 
+(Endereço, Contato, ODS, etc.) via herança multi-tabela.
 """
 
+import re
+
+from django import forms
 from django.contrib import admin
 from .models import (
     RegistroInventario,
@@ -43,7 +45,6 @@ from .models import (
     EscopoCatalogo
 )
 
-# ----------------------------- Inlines de suporte ---------------------------
 
 class EnderecoInline(admin.StackedInline):
     model = Endereco
@@ -78,7 +79,6 @@ class ProdutoServicoInline(admin.TabularInline):
     extra = 0
 
 
-# ----------------------------- Bases reutilizáveis --------------------------
 
 class RegistroBaseAdmin(admin.ModelAdmin):
     """Base p/ entidades independentes (Guia, RHC, Grupo, Táxi)."""
@@ -153,7 +153,6 @@ class EstabelecimentoBaseAdmin(RegistroBaseAdmin):
         return inline_instances
 
 
-# ----------------------------- Filhas de Estabelecimento --------------------
 
 @admin.register(Estabelecimento)
 class EstabelecimentoAdmin(admin.ModelAdmin):
@@ -162,7 +161,7 @@ class EstabelecimentoAdmin(admin.ModelAdmin):
     search_fields = ["nome_fantasia", "razao_social", "cnpj"]
 
     def has_add_permission(self, request):
-        return False  # Criar sempre pela especialização (filhas)
+        return False
 
 
 @admin.register(MeioHospedagem)
@@ -200,7 +199,6 @@ for _modelo in (
     admin.site.register(_modelo, EstabelecimentoBaseAdmin)
 
 
-# ----------------------------- Entidades independentes ----------------------
 
 @admin.register(GuiaTurismo)
 class GuiaTurismoAdmin(RegistroBaseAdmin):
@@ -218,6 +216,40 @@ class RHCAdmin(RegistroBaseAdmin):
 
 @admin.register(GrupoFolclorico)
 class GrupoFolcloricoAdmin(RegistroBaseAdmin):
+    class GrupoFolcloricoForm(forms.ModelForm):
+        class Meta:
+            model = GrupoFolclorico
+            fields = "__all__"
+
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.fields["documento"].label = "CPF/CNPJ"
+            self.fields["documento"].help_text = "Informe CPF (11 dígitos) ou CNPJ (14 dígitos). O tipo será definido automaticamente."
+            self.fields["documento"].widget.attrs.update({"placeholder": "CPF ou CNPJ", "maxlength": 18})
+            self.fields["tipo_documento"].required = False
+            self.fields["tipo_documento"].help_text = "Opcional: será preenchido automaticamente a partir do número informado."
+
+        def clean(self):
+            cleaned = super().clean()
+            documento = re.sub(r"\D", "", cleaned.get("documento", "") or "")
+            tipo_documento = (cleaned.get("tipo_documento") or "").strip().lower()
+
+            if len(documento) not in (11, 14):
+                self.add_error("documento", "CPF/CNPJ deve conter 11 ou 14 dígitos numéricos.")
+                return cleaned
+
+            if not tipo_documento:
+                cleaned["tipo_documento"] = "cpf" if len(documento) == 11 else "cnpj"
+            elif tipo_documento not in ("cpf", "cnpj"):
+                self.add_error("tipo_documento", "Use CPF ou CNPJ.")
+            elif (tipo_documento == "cpf" and len(documento) != 11) or (tipo_documento == "cnpj" and len(documento) != 14):
+                esperado = 11 if tipo_documento == "cpf" else 14
+                self.add_error("documento", f"{tipo_documento.upper()} deve conter exatamente {esperado} dígitos numéricos.")
+
+            cleaned["documento"] = documento
+            return cleaned
+
+    form = GrupoFolcloricoForm
     list_display = ["nome", "tipo_documento", "documento"]
     search_fields = ["nome", "documento"]
 
@@ -228,7 +260,6 @@ class TaxiAplicativoAdmin(RegistroBaseAdmin):
     search_fields = ["nome", "empresa", "placa"]
 
 
-# ----------------------------- Catálogos e demais ---------------------------
 
 @admin.register(Caracteristica)
 class CaracteristicaAdmin(admin.ModelAdmin):

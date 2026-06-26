@@ -16,6 +16,13 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
+from rest_framework.routers import DefaultRouter
+from inventario.views import CadastrarUsuarioView, UserAdminViewSet
+from django.conf import settings
+from django.conf.urls.static import static
+
+users_router = DefaultRouter()
+users_router.register(r'users', UserAdminViewSet, basename='users')
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -23,6 +30,15 @@ urlpatterns = [
     # conexão de rotas do app inventario
     # usa prefixo api/inventario/ - todas as rotas desse arquivo
     path('api/inventario/', include('inventario.urls')),
+    
+    # Endpoint customizado de cadastro de usuários com RBAC
+    path('api/auth/cadastrar-usuario/', CadastrarUsuarioView.as_view(), name='cadastrar-usuario'),
+
+    # CRUD administrativo de usuários
+    path('api/', include(users_router.urls)),
+    
+    # Rotas padrão de autenticação (dj-rest-auth)
     path('api/auth/', include('dj_rest_auth.urls')),
+    
     path('api/historico/', include('historico.urls')),
-]
+] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

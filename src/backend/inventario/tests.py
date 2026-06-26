@@ -1,12 +1,7 @@
 """
-Testes automatizados do app `inventario`.
-
-Rode com:   python manage.py test inventario
-Ou um caso: python manage.py test inventario.HerancaTests
-
-Cada classe agrupa um aspecto da modelagem que discutimos. O Django roda
-cada teste dentro de uma transação que é desfeita ao final, então os
-testes são isolados e não sujam o banco real (usam um banco temporário).
+Suíte de testes automatizados para o módulo de Inventário Turístico.
+Valida as regras de negócio de modelagem, herança multi-tabela, restrições 
+de documentos (CNPJ/CPF) e o isolamento do catálogo dinâmico (EAV).
 """
 
 from datetime import date
@@ -14,6 +9,8 @@ from datetime import date
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.test import TestCase
+from django.contrib.auth import get_user_model
+from rest_framework.test import APIRequestFactory, force_authenticate
 
 from .models import (
     AtrativoLazerEntretenimento,
@@ -33,6 +30,14 @@ from .models import (
     RegistroODS,
     ServicoApoio,
 )
+from .serializers import (
+    GrupoFolcloricoSerializer,
+    GuiaTurismoSerializer,
+    MeioHospedagemSerializer,
+    RHCSerializer,
+    TradePortalMeuEstabelecimentoSerializer,
+)
+from .views import DashboardResumoView
 
 
 class DiscriminadorTipoTests(TestCase):
@@ -85,7 +90,7 @@ class CnpjTests(TestCase):
 
     def test_cnpj_valido_passa(self):
         h = MeioHospedagem(nome_fantasia="Hotel A", cnpj="11222333000181")
-        h.full_clean()  # não deve levantar
+        h.full_clean()
 
     def test_cnpj_duplicado_rejeitado(self):
         MeioHospedagem.objects.create(nome_fantasia="Hotel A", cnpj="11222333000181")
@@ -94,12 +99,64 @@ class CnpjTests(TestCase):
                 MeioHospedagem.objects.create(nome_fantasia="Clone", cnpj="11222333000181")
 
     def test_cnpj_nulo_permitido_para_atrativo_publico(self):
-        # vários registros sem CNPJ devem coexistir (NULL não conflita no UNIQUE)
         AtrativoLazerEntretenimento.objects.create(nome_fantasia="Praça Pública", cnpj=None)
         AtrativoLazerEntretenimento.objects.create(nome_fantasia="Mirante", cnpj=None)
         self.assertEqual(
             AtrativoLazerEntretenimento.objects.filter(cnpj__isnull=True).count(), 2
         )
+
+    def test_cnpj_invalido_retorna_mensagem_amigavel_no_serializer(self):
+        serializer = MeioHospedagemSerializer(data={"nome_fantasia": "Hotel A", "cnpj": "123"})
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("CNPJ deve conter exatamente 14 dígitos numéricos.", str(serializer.errors["cnpj"]))
+
+
+class DocumentoIndependenteTests(TestCase):
+    """Entidades independentes usam CPF ou documento próprio, não CNPJ."""
+
+    def test_guia_turismo_cpf_tem_mensagem_amigavel(self):
+        serializer = GuiaTurismoSerializer(data={"cpf": "123"})
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("CPF deve conter exatamente 11 dígitos numéricos.", str(serializer.errors["cpf"]))
+
+    def test_rhc_cpf_proprietario_tem_mensagem_amigavel(self):
+        serializer = RHCSerializer(data={
+            "numeracao_rhc": "RHC-1",
+            "tipo_imovel": "casa",
+            "cpf_proprietario": "123",
+        })
+        self.assertFalse(serializer.is_valid())
+        self.assertIn(
+            "CPF do proprietário deve conter exatamente 11 dígitos numéricos.",
+            str(serializer.errors["cpf_proprietario"]),
+        )
+
+    def test_grupo_folclorico_documento_segue_tipo_documento(self):
+        serializer = GrupoFolcloricoSerializer(data={
+            "nome": "Grupo X",
+            "tipo_documento": "cpf",
+            "documento": "123",
+        })
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("CPF deve conter exatamente 11 dígitos numéricos.", str(serializer.errors["documento"]))
+
+    def test_grupo_folclorico_accepta_cpf_sem_tipo_documento(self):
+        serializer = GrupoFolcloricoSerializer(data={
+            "nome": "Grupo X",
+            "documento": "12345678901",
+        })
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        self.assertEqual(serializer.validated_data["tipo_documento"], "cpf")
+        self.assertEqual(serializer.validated_data["documento"], "12345678901")
+
+    def test_grupo_folclorico_accepta_cnpj_sem_tipo_documento(self):
+        serializer = GrupoFolcloricoSerializer(data={
+            "nome": "Grupo X",
+            "documento": "11222333000181",
+        })
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        self.assertEqual(serializer.validated_data["tipo_documento"], "cnpj")
+        self.assertEqual(serializer.validated_data["documento"], "11222333000181")
 
 
 class HerancaTests(TestCase):
@@ -165,7 +222,7 @@ class EAVEscopoTests(TestCase):
         ec = EstabelecimentoCaracteristica(
             estabelecimento=self.hotel, caracteristica=self.carac_mh
         )
-        ec.full_clean()  # não deve levantar
+        ec.full_clean()
 
     def test_caracteristica_de_outro_escopo_barrada(self):
         ec = EstabelecimentoCaracteristica(
@@ -175,7 +232,6 @@ class EAVEscopoTests(TestCase):
             ec.full_clean()
 
     def test_escopo_evita_colisao_de_nomes_iguais(self):
-        # mesmo (nome, categoria) em escopos diferentes coexistem no catálogo
         self.assertNotEqual(self.carac_mh.pk, self.carac_atrativo.pk)
 
     def test_medicao_guarda_valor_numerico(self):
@@ -213,6 +269,145 @@ class ODSTests(TestCase):
     def test_quantitativo_com_valor_passa(self):
         r = RegistroODS(registro=self.hotel, indicador=self.quant, valor=42)
         r.full_clean()
+
+
+class DashboardResumoTests(TestCase):
+    def setUp(self):
+        self.factory = APIRequestFactory()
+        self.user = get_user_model().objects.create_user(
+            username="dashboard-user",
+            password="senha-segura",
+        )
+        self.hotel = MeioHospedagem.objects.create(nome_fantasia="Hotel A")
+        self.indicador_quant = IndicadorODS.objects.create(
+            eixo=1,
+            ods=5,
+            descricao="Mulheres em posição de liderança",
+            natureza=IndicadorODS.Natureza.QUANTITATIVO,
+        )
+        self.indicador_quali = IndicadorODS.objects.create(
+            eixo=1,
+            ods=5,
+            descricao="Igualdade de gênero",
+            natureza=IndicadorODS.Natureza.QUALITATIVO,
+        )
+        RegistroODS.objects.create(registro=self.hotel, indicador=self.indicador_quant, valor=42)
+
+    def test_resumo_usa_catalogo_real_de_ods(self):
+        request = self.factory.get("/api/inventario/dashboard/resumo/")
+        force_authenticate(request, user=self.user)
+
+        response = DashboardResumoView.as_view()(request)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["ods"]), 2)
+        self.assertIn("Mulheres em posição de liderança", response.data["ods"][0]["subtitulo"])
+        self.assertIn("Igualdade de gênero", response.data["ods"][1]["subtitulo"])
+        self.assertEqual(response.data["ods"][0]["percent"], 100)
+        self.assertEqual(response.data["ods"][1]["percent"], 0)
+        self.assertIsNone(response.data["infra"]["estimativaLeitosConstrucao"])
+
+
+class DynamicODSSerializerTests(TestCase):
+    def setUp(self):
+        self.hotel = MeioHospedagem.objects.create(nome_fantasia="Hotel A")
+        self.indicador_quali = IndicadorODS.objects.create(
+            eixo=1,
+            ods=3,
+            descricao="Acesso PCD",
+            natureza=IndicadorODS.Natureza.QUALITATIVO,
+        )
+        self.indicador_quant = IndicadorODS.objects.create(
+            eixo=2,
+            ods=5,
+            descricao="Mulheres em posição de liderança",
+            natureza=IndicadorODS.Natureza.QUANTITATIVO,
+        )
+
+    def test_serializer_exposes_dynamic_ods_catalog(self):
+        data = MeioHospedagemSerializer(self.hotel).data
+        self.assertEqual(len(data["sustentabilidade"]), 2)
+        self.assertEqual(data["sustentabilidade"][0]["descricao"], "Acesso PCD")
+        self.assertFalse(data["sustentabilidade"][0]["ativo"])
+
+    def test_serializer_syncs_dynamic_ods_payload(self):
+        serializer = MeioHospedagemSerializer(
+            self.hotel,
+            data={
+                "nome_fantasia": "Hotel A",
+                "sustentabilidade": [
+                    {"id": self.indicador_quali.id, "ativo": True},
+                    {"id": self.indicador_quant.id, "ativo": True, "valor": 75},
+                ],
+            },
+            partial=True,
+        )
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        serializer.save()
+
+        self.assertEqual(self.hotel.indicadores_ods.count(), 2)
+        self.assertTrue(self.hotel.indicadores_ods.filter(indicador=self.indicador_quali).exists())
+        self.assertEqual(
+            self.hotel.indicadores_ods.get(indicador=self.indicador_quant).valor,
+            75,
+        )
+
+    def test_trade_portal_serializer_exposes_dynamic_ods(self):
+        data = TradePortalMeuEstabelecimentoSerializer(self.hotel).data
+        self.assertEqual(len(data["sustentabilidade"]), 2)
+        self.assertEqual(data["sustentabilidade"][1]["descricao"], "Mulheres em posição de liderança")
+
+
+class DynamicCatalogSerializerTests(TestCase):
+    def setUp(self):
+        self.hotel = MeioHospedagem.objects.create(nome_fantasia="Hotel A")
+        self.carac_1 = Caracteristica.objects.create(
+            escopo="meio_hospedagem",
+            nome="Acessibilidade",
+            categoria="Rampa",
+        )
+        self.carac_2 = Caracteristica.objects.create(
+            escopo="meio_hospedagem",
+            nome="Acessibilidade",
+            categoria="Braille",
+        )
+
+    def test_serializer_exposes_characteristics_from_db(self):
+        data = MeioHospedagemSerializer(self.hotel).data
+        self.assertEqual(data["caracteristicas"], [])
+
+    def test_serializer_syncs_characteristics(self):
+        serializer = MeioHospedagemSerializer(
+            self.hotel,
+            data={
+                "nome_fantasia": "Hotel A",
+                "caracteristicas": [self.carac_1.id, self.carac_2.id],
+            },
+            partial=True,
+        )
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        serializer.save()
+        self.assertEqual(
+            list(self.hotel.caracteristicas.order_by("id").values_list("id", flat=True)),
+            [self.carac_1.id, self.carac_2.id],
+        )
+
+    def test_trade_portal_serializer_syncs_characteristics(self):
+        serializer = TradePortalMeuEstabelecimentoSerializer(
+            self.hotel,
+            data={
+                "nome_fantasia": "Hotel A",
+                "caracteristicas": [self.carac_1.id],
+            },
+            partial=True,
+            context={"nivel_permissao": "editor"},
+        )
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        serializer.save()
+        self.assertEqual(
+            list(self.hotel.caracteristicas.values_list("id", flat=True)),
+            [self.carac_1.id],
+        )
 
 
 class GrupoFolcloricoTests(TestCase):
