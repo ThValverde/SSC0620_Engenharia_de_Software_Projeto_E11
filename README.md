@@ -8,13 +8,13 @@ Este repositório contém os artefatos de desenvolvimento do projeto de software
 ---
 
 ## 📝 Sumário
-* [Sobre o Projeto](#-sobre-o-projeto)
-* [Arquitetura do Sistema](#-arquitetura-do-sistema)
-* [Controle de Acessos (RBAC)](#-controle-de-acessos-rbac)
-* [Organização do Repositório](#-organização-do-repositório)
-* [Como Executar o Projeto](#-como-executar-o-projeto)
-* [Próximos Passos (Roadmap)](#-próximos-passos-roadmap)
-* [Equipe Acadêmica](#-equipe-acadêmica)
+* [Sobre o Projeto](#sobre-o-projeto)
+* [Arquitetura do Sistema](#arquitetura-do-sistema)
+* [Controle de Acessos (RBAC)](#controle-de-acessos-rbac)
+* [Organização do Repositório](#organização-do-repositório)
+* [Como Executar o Projeto](#como-executar-o-projeto)
+* [Próximos Passos (Roadmap)](#próximos-passos-roadmap)
+* [Equipe Acadêmica](#equipe-acadêmica)
 
 ## 📖 Sobre o Projeto
 
