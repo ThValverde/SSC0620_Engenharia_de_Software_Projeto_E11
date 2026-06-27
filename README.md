@@ -193,8 +193,8 @@ npm run dev
 * Thiago de Castro Valverde (14609241) - *Product Owner / Developer*
 * Artur Rossoni Baraldi (16983730) - *Developer*
 * Felipe de Oliveira Gomes (14613841) - *Developer*
-* Leonardo Silva Cardoso (14588200) - *Developer*
-* Leonardo Codeceira Gonçalves Pinto (14588509) - *Developer*
+* Leonardo Silva Cardoso (14588509) - *Developer*
+* Leonardo Codeceira Gonçalves Pinto (14588200) - *Developer*
 
 
 ## 🤖 Nota sobre o Uso de Inteligência Artificial
